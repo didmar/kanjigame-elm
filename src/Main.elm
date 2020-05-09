@@ -67,7 +67,7 @@ defaultKanjiEntry =
     { kanji = defaultKanji, meaning = Nothing, grade = Nothing }
 
 
-{-| Word selected from the WordMatches
+{-| Word selected by the Jamdict API
 -}
 type alias ValidWord =
     String
@@ -75,14 +75,14 @@ type alias ValidWord =
 
 {-| Entry from the dictionary, conform to the game rules
 -}
-type alias WordMatch =
+type alias WordEntry =
     { word : ValidWord
     , meaning : String
     }
 
 
-type alias WordMatches =
-    List WordMatch
+type alias WordEntries =
+    List WordEntry
 
 
 type alias Content =
@@ -99,11 +99,11 @@ emptyContent =
 type alias Model =
     { kanjiToMatch : KanjiEntry
     , content : Content
-    , wordMatches : WordMatches
+    , wordMatches : WordEntries
     , history : List ValidWord
     , msg : Maybe String
     , kanjis : List Kanji
-    , jokerWord : Maybe WordMatch
+    , jokerWord : Maybe WordEntry
     }
 
 
@@ -134,11 +134,11 @@ type Msg
     = GotKanjis (Result Http.Error (List Kanji))
     | NewKanji Kanji
     | GotKanjiDetails (Result Http.Error KanjiEntry)
-    | GotJokerWord (Result Http.Error (Maybe WordMatch))
+    | GotJokerWord (Result Http.Error (Maybe WordEntry))
     | InputRomaji String
     | GotConverted (Result Http.Error (Result String Hiragana))
     | Enter
-    | GotWordMatches (Result Http.Error WordMatches)
+    | GotWordMatches (Result Http.Error WordEntries)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -297,9 +297,9 @@ getJokerWord kanji =
         GotJokerWord
 
 
-jokerWordDecoder : Json.Decoder (Maybe WordMatch)
+jokerWordDecoder : Json.Decoder (Maybe WordEntry)
 jokerWordDecoder =
-    Json.field "result" (Json.maybe wordMatchDecoder)
+    Json.field "result" (Json.maybe wordEntryDecoder)
 
 
 kanjiGenerator : List Kanji -> Random.Generator Kanji
@@ -338,7 +338,7 @@ noMatch model =
     }
 
 
-addMatchedWord : Model -> WordMatch -> WordMatches -> Model
+addMatchedWord : Model -> WordEntry -> WordEntries -> Model
 addMatchedWord model firstWordMatch otherWordMatches =
     { model
         | wordMatches = firstWordMatch :: otherWordMatches
@@ -378,7 +378,7 @@ searchWord : Hiragana -> Kanji -> Cmd Msg
 searchWord word kanjiToMatch =
     getJson
         ("http://127.0.0.1:9000/lookup-words/" ++ word ++ "?kanji_to_match=" ++ kanjiToMatch)
-        wordMatchesDecoder
+        wordEntriesDecoder
         GotWordMatches
 
 
@@ -395,14 +395,14 @@ getJson url decoder toMsg =
         }
 
 
-wordMatchesDecoder : Json.Decoder WordMatches
-wordMatchesDecoder =
-    Json.field "valid_entries" (Json.list wordMatchDecoder)
+wordEntriesDecoder : Json.Decoder WordEntries
+wordEntriesDecoder =
+    Json.field "valid_entries" (Json.list wordEntryDecoder)
 
 
-wordMatchDecoder : Json.Decoder WordMatch
-wordMatchDecoder =
-    Json.map2 WordMatch
+wordEntryDecoder : Json.Decoder WordEntry
+wordEntryDecoder =
+    Json.map2 WordEntry
         (Json.field "word" Json.string)
         meaningDecoder
 
