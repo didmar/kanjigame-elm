@@ -100,7 +100,7 @@ type alias Model =
     { kanjiToMatch : KanjiEntry
     , content : Content
     , wordMatches : WordEntries
-    , history : List ValidWord
+    , history : WordEntries
     , msg : Maybe String
     , kanjis : List Kanji
     , jokerWord : Maybe WordEntry
@@ -112,7 +112,7 @@ initModel =
     { kanjiToMatch = defaultKanjiEntry
     , content = emptyContent
     , wordMatches = []
-    , history = [ "toto", "tata" ]
+    , history = []
     , msg = Nothing
     , kanjis = []
     , jokerWord = Nothing
@@ -342,7 +342,7 @@ addMatchedWord : Model -> WordEntry -> WordEntries -> Model
 addMatchedWord model firstWordMatch otherWordMatches =
     { model
         | wordMatches = firstWordMatch :: otherWordMatches
-        , history = firstWordMatch.word :: model.history
+        , history = firstWordMatch :: model.history
         , content = emptyContent
     }
 
@@ -502,7 +502,14 @@ historyDiv : Model -> Html Msg
 historyDiv model =
     ul
         []
-        (List.map (\word -> li [ style "font-size" "medium", style "min-height" "18pt" ] [ text word ]) model.history)
+        (List.map wordEntryLi model.history)
+
+
+wordEntryLi : WordEntry -> Html Msg
+wordEntryLi wordEntry =
+    li
+        [ style "font-size" "medium", style "min-height" "18pt" ]
+        [ text (wordEntry.word ++ " (" ++ wordEntry.meaning ++ ")") ]
 
 
 showContent : Model -> String
