@@ -13,6 +13,11 @@ import Random
 -- CONFIG
 
 
+apiBaseURL : String
+apiBaseURL =
+    "http://127.0.0.1:9000/"
+
+
 maxKanjiGrade : Int
 maxKanjiGrade =
     3
@@ -233,7 +238,7 @@ update msg model =
 getKanjiDetails : Kanji -> Cmd Msg
 getKanjiDetails kanji =
     getJson
-        ("http://127.0.0.1:9000/kanji-details/" ++ kanji)
+        (apiBaseURL ++ "kanji-details/" ++ kanji)
         kanjiEntryDecoder
         GotKanjiDetails
 
@@ -276,7 +281,7 @@ giveUp model =
 
 getKanjis : Cmd Msg
 getKanjis =
-    getJson ("http://127.0.0.1:9000/kanjis?max_grade=" ++ String.fromInt maxKanjiGrade)
+    getJson (apiBaseURL ++ "kanjis?max_grade=" ++ String.fromInt maxKanjiGrade)
         kanjisDecoder
         GotKanjis
 
@@ -293,7 +298,7 @@ drawKanji kanjis =
 
 getJokerWord : Kanji -> Cmd Msg
 getJokerWord kanji =
-    getJson ("http://127.0.0.1:9000/find-word-with-kanji/" ++ kanji ++ "?max_kanji_grade=" ++ String.fromInt maxKanjiGrade)
+    getJson (apiBaseURL ++ "find-word-with-kanji/" ++ kanji ++ "?max_kanji_grade=" ++ String.fromInt maxKanjiGrade)
         jokerWordDecoder
         GotJokerWord
 
@@ -356,7 +361,7 @@ romajiToHiragana romaji =
 
         _ ->
             getJson
-                ("http://127.0.0.1:9000/to-hiragana/" ++ romaji)
+                (apiBaseURL ++ "to-hiragana/" ++ romaji)
                 convertedDecoder
                 GotConverted
 
@@ -378,7 +383,7 @@ convertedDecoder =
 searchWord : Hiragana -> Kanji -> Cmd Msg
 searchWord word kanjiToMatch =
     getJson
-        ("http://127.0.0.1:9000/lookup-words/" ++ word ++ "?kanji_to_match=" ++ kanjiToMatch)
+        (apiBaseURL ++ "lookup-words/" ++ word ++ "?kanji_to_match=" ++ kanjiToMatch)
         wordEntriesDecoder
         GotWordMatches
 
