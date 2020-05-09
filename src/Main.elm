@@ -48,11 +48,23 @@ type alias Kanji =
     String
 
 
+type alias KanjiEntry =
+    { kanji : Kanji
+    , meaning : Maybe String
+    , grade : Maybe Int
+    }
+
+
 {-| Required only to initialize the model, will be replaced by a random one
 -}
 defaultKanji : Kanji
 defaultKanji =
     "一"
+
+
+defaultKanjiEntry : KanjiEntry
+defaultKanjiEntry =
+    { kanji = defaultKanji, meaning = Nothing, grade = Nothing }
 
 
 {-| Word selected from the WordMatches
@@ -85,7 +97,7 @@ emptyContent =
 
 
 type alias Model =
-    { kanjiToMatch : Kanji
+    { kanjiToMatch : KanjiEntry
     , content : Content
     , wordMatches : WordMatches
     , history : List ValidWord
@@ -97,7 +109,7 @@ type alias Model =
 
 initModel : Model
 initModel =
-    { kanjiToMatch = defaultKanji
+    { kanjiToMatch = defaultKanjiEntry
     , content = emptyContent
     , wordMatches = []
     , history = [ "toto", "tata" ]
@@ -121,6 +133,7 @@ init _ =
 type Msg
     = GotKanjis (Result Http.Error (List Kanji))
     | NewKanji Kanji
+    | GotKanjiDetails (Result Http.Error KanjiEntry)
     | GotJokerWord (Result Http.Error (Maybe WordMatch))
     | InputRomaji String
     | GotConverted (Result Http.Error (Result String Hiragana))
@@ -142,14 +155,24 @@ update msg model =
                     ( model, Cmd.none )
 
         NewKanji newKanji ->
-            ( { model | kanjiToMatch = newKanji }
-            , getJokerWord newKanji
+            ( updateKanjiToMatch model newKanji
+            , Cmd.batch [ getJokerWord newKanji, getKanjiDetails newKanji ]
             )
+
+        GotKanjiDetails result ->
+            case result of
+                Ok kanjiEntry ->
+                    ( { model | kanjiToMatch = kanjiEntry }
+                    , Cmd.none
+                    )
+
+                Err _ ->
+                    ( model, Cmd.none )
 
         GotJokerWord result ->
             case result of
                 Ok jokerWord ->
-                    ( { model | jokerWord = Debug.log ("jokerWord for kanji " ++ model.kanjiToMatch) jokerWord }
+                    ( { model | jokerWord = Debug.log ("jokerWord for kanji " ++ model.kanjiToMatch.kanji) jokerWord }
                     , Cmd.none
                     )
 
@@ -177,7 +200,7 @@ update msg model =
             case model.content.converted of
                 Ok hiragana ->
                     ( model
-                    , searchWord hiragana model.kanjiToMatch
+                    , searchWord hiragana model.kanjiToMatch.kanji
                     )
 
                 Err "" ->
@@ -204,6 +227,27 @@ update msg model =
                     ( { model | content = emptyContent }
                     , Cmd.none
                     )
+
+
+getKanjiDetails : Kanji -> Cmd Msg
+getKanjiDetails kanji =
+    getJson
+        ("http://127.0.0.1:9000/kanji-details/" ++ kanji)
+        kanjiEntryDecoder
+        GotKanjiDetails
+
+
+kanjiEntryDecoder : Json.Decoder KanjiEntry
+kanjiEntryDecoder =
+    Json.map3 KanjiEntry
+        (Json.field "kanji" Json.string)
+        (Json.field "meaning" (Json.maybe Json.string))
+        (Json.field "grade" (Json.maybe Json.int))
+
+
+updateKanjiToMatch : Model -> Kanji -> Model
+updateKanjiToMatch model newKanji =
+    { model | kanjiToMatch = { kanji = newKanji, meaning = Nothing, grade = Nothing } }
 
 
 updateRomaji : Model -> String -> Model
@@ -397,7 +441,27 @@ view model =
 
 kanjiToMatchDiv : Model -> Html Msg
 kanjiToMatchDiv model =
-    div [ style "font-size" "xxx-large" ] [ text (model.kanjiToMatch ++ "?") ]
+    div [ style "min-height" "55pt" ]
+        [ kanjiDiv model.kanjiToMatch.kanji
+        , kanjiMeaningDiv model.kanjiToMatch.meaning
+        ]
+
+
+kanjiDiv : Kanji -> Html Msg
+kanjiDiv kanji =
+    div
+        [ style "font-size" "xxx-large"
+        , style "float" "left"
+        , style "margin-right" "10pt"
+        ]
+        [ text (kanji ++ "?") ]
+
+
+kanjiMeaningDiv : Maybe String -> Html Msg
+kanjiMeaningDiv meaning =
+    div
+        [ style "font-size" "medium" ]
+        [ text (Maybe.withDefault "" meaning) ]
 
 
 wordInputDiv : Model -> Html Msg
@@ -405,7 +469,7 @@ wordInputDiv model =
     div
         []
         [ input
-            [ placeholder ("Type a word with " ++ model.kanjiToMatch)
+            [ placeholder ("Type a word with " ++ model.kanjiToMatch.kanji)
             , value model.content.romaji
             , onInput InputRomaji
             , onEnter Enter
