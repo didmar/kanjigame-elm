@@ -77,6 +77,7 @@ type alias ValidWord =
 -}
 type alias WordEntry =
     { word : ValidWord
+    , kana : String
     , meaning : String
     }
 
@@ -402,8 +403,9 @@ wordEntriesDecoder =
 
 wordEntryDecoder : Json.Decoder WordEntry
 wordEntryDecoder =
-    Json.map2 WordEntry
+    Json.map3 WordEntry
         (Json.field "word" Json.string)
+        kanaDecoder
         meaningDecoder
 
 
@@ -416,8 +418,12 @@ meaningDecoder =
     Json.map (String.join " / ") senses
 
 
+kanaDecoder : Json.Decoder String
+kanaDecoder =
+    Json.field "kana" (Json.index 0 (Json.field "text" Json.string))
 
--- senses[0].SenseGloss[*].text
+
+
 -- SUBSCRIPTIONS
 
 
@@ -509,7 +515,7 @@ wordEntryLi : WordEntry -> Html Msg
 wordEntryLi wordEntry =
     li
         [ style "font-size" "medium", style "min-height" "18pt" ]
-        [ text (wordEntry.word ++ " (" ++ wordEntry.meaning ++ ")") ]
+        [ text (wordEntry.word ++ " (" ++ wordEntry.kana ++ "): " ++ wordEntry.meaning) ]
 
 
 showContent : Model -> String
