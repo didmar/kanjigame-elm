@@ -231,15 +231,9 @@ giveUp model =
 
 getKanjis : Cmd Msg
 getKanjis =
-    Http.request
-        { method = "GET"
-        , url = "http://127.0.0.1:9000/kanjis?max_grade=" ++ String.fromInt maxKanjiGrade
-        , headers = []
-        , expect = Http.expectJson GotKanjis kanjisDecoder
-        , body = Http.emptyBody
-        , timeout = Nothing
-        , tracker = Nothing
-        }
+    getJson ("http://127.0.0.1:9000/kanjis?max_grade=" ++ String.fromInt maxKanjiGrade)
+        kanjisDecoder
+        GotKanjis
 
 
 kanjisDecoder : Json.Decoder (List Kanji)
@@ -254,15 +248,9 @@ drawKanji kanjis =
 
 getJokerWord : Kanji -> Cmd Msg
 getJokerWord kanji =
-    Http.request
-        { method = "GET"
-        , url = "http://127.0.0.1:9000/find-word-with-kanji/" ++ kanji ++ "?max_kanji_grade=" ++ String.fromInt maxKanjiGrade
-        , headers = []
-        , expect = Http.expectJson GotJokerWord jokerWordDecoder
-        , body = Http.emptyBody
-        , timeout = Nothing
-        , tracker = Nothing
-        }
+    getJson ("http://127.0.0.1:9000/find-word-with-kanji/" ++ kanji ++ "?max_kanji_grade=" ++ String.fromInt maxKanjiGrade)
+        jokerWordDecoder
+        GotJokerWord
 
 
 jokerWordDecoder : Json.Decoder (Maybe WordMatch)
@@ -322,15 +310,10 @@ romajiToHiragana romaji =
             Cmd.none
 
         _ ->
-            Http.request
-                { method = "GET"
-                , url = "http://127.0.0.1:9000/to-hiragana/" ++ romaji
-                , headers = []
-                , expect = Http.expectJson GotConverted convertedDecoder
-                , body = Http.emptyBody
-                , timeout = Nothing
-                , tracker = Nothing
-                }
+            getJson
+                ("http://127.0.0.1:9000/to-hiragana/" ++ romaji)
+                convertedDecoder
+                GotConverted
 
 
 convertedDecoder : Json.Decoder (Result String Hiragana)
@@ -349,11 +332,19 @@ convertedDecoder =
 
 searchWord : Hiragana -> Kanji -> Cmd Msg
 searchWord word kanjiToMatch =
+    getJson
+        ("http://127.0.0.1:9000/lookup-words/" ++ word ++ "?kanji_to_match=" ++ kanjiToMatch)
+        wordMatchesDecoder
+        GotWordMatches
+
+
+getJson : String -> Json.Decoder a -> (Result Http.Error a -> b) -> Cmd b
+getJson url decoder toMsg =
     Http.request
         { method = "GET"
-        , url = "http://127.0.0.1:9000/lookup-words/" ++ word ++ "?kanji_to_match=" ++ kanjiToMatch
+        , url = url
         , headers = []
-        , expect = Http.expectJson GotWordMatches wordMatchesDecoder
+        , expect = Http.expectJson toMsg decoder
         , body = Http.emptyBody
         , timeout = Nothing
         , tracker = Nothing
