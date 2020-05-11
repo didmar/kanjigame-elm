@@ -446,6 +446,7 @@ view model =
     div []
         [ kanjiToMatchDiv model
         , wordInputDiv model
+        , hintDiv model
         , historyDiv model
         ]
 
@@ -519,6 +520,22 @@ hiraganaOrMsgDiv model =
                     ( "black", showContent model )
     in
     div [ style "font-size" "medium", style "min-height" "18pt", style "color" color ] [ text txt ]
+
+
+hintDiv : Model -> Html Msg
+hintDiv model =
+    let
+        elems =
+            case model.jokerWord of
+                Just jokerWord ->
+                    [ u [] [ text "Hint:" ], text (" " ++ jokerWord.meaning) ]
+
+                Nothing ->
+                    []
+    in
+    div
+        [ style "font-size" "medium" ]
+        elems
 
 
 wordMatchesDiv : Model -> Html Msg
