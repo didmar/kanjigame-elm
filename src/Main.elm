@@ -262,7 +262,7 @@ updateRomaji model romaji =
         upd content =
             { content | romaji = romaji }
     in
-    { model | content = upd model.content }
+    { model | content = upd model.content, msg = Nothing }
 
 
 giveUp : Model -> Model
