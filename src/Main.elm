@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (..)
-import Html.Attributes exposing (placeholder, style, value)
+import Html.Attributes exposing (href, placeholder, src, style, target, value)
 import Html.Events exposing (keyCode, on, onInput)
 import Http
 import Json.Decode as Json
@@ -454,7 +454,7 @@ kanjiToMatchDiv : Model -> Html Msg
 kanjiToMatchDiv model =
     div [ style "min-height" "55pt" ]
         [ kanjiDiv model.kanjiToMatch.kanji
-        , kanjiMeaningDiv model.kanjiToMatch.meaning
+        , kanjiMeaningDiv model.kanjiToMatch
         ]
 
 
@@ -468,11 +468,28 @@ kanjiDiv kanji =
         [ text (kanji ++ "?") ]
 
 
-kanjiMeaningDiv : Maybe String -> Html Msg
-kanjiMeaningDiv meaning =
+kanjiMeaningDiv : KanjiEntry -> Html Msg
+kanjiMeaningDiv kanjiEntry =
     div
         [ style "font-size" "medium" ]
-        [ text (Maybe.withDefault "" meaning) ]
+        [ text (Maybe.withDefault "" kanjiEntry.meaning)
+        , viewKanjiDictLink kanjiEntry.kanji
+        ]
+
+
+viewKanjiDictLink : Kanji -> Html Msg
+viewKanjiDictLink kanji =
+    a
+        [ target "_blank"
+        , href ("https://jisho.org/search/" ++ kanji ++ " %23kanji")
+        ]
+        [ img
+            [ src "images/ext-link.svg"
+            , style "height" "12pt"
+            , style "margin-left" "5pt"
+            ]
+            []
+        ]
 
 
 wordInputDiv : Model -> Html Msg
@@ -519,8 +536,27 @@ historyDiv model =
 wordEntryLi : WordEntry -> Html Msg
 wordEntryLi wordEntry =
     li
-        [ style "font-size" "medium", style "min-height" "18pt" ]
-        [ text (wordEntryToString wordEntry) ]
+        [ style "font-size" "medium"
+        , style "height" "18pt"
+        ]
+        [ text (wordEntryToString wordEntry)
+        , viewWordDictLink wordEntry
+        ]
+
+
+viewWordDictLink : WordEntry -> Html Msg
+viewWordDictLink wordEntry =
+    a
+        [ target "_blank"
+        , href ("https://jisho.org/search/" ++ wordEntry.word ++ " %23words")
+        ]
+        [ img
+            [ src "images/ext-link.svg"
+            , style "height" "12pt"
+            , style "margin-left" "5pt"
+            ]
+            []
+        ]
 
 
 showContent : Model -> String
