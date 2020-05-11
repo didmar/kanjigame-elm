@@ -270,8 +270,8 @@ giveUp model =
     let
         newMsg =
             case model.jokerWord of
-                Just wordMatch ->
-                    "Could have used " ++ wordMatch.word
+                Just wordEntry ->
+                    "Could have used " ++ wordEntryToString wordEntry
 
                 Nothing ->
                     "Did not have any joker..."
@@ -520,7 +520,7 @@ wordEntryLi : WordEntry -> Html Msg
 wordEntryLi wordEntry =
     li
         [ style "font-size" "medium", style "min-height" "18pt" ]
-        [ text (wordEntry.word ++ " (" ++ wordEntry.kana ++ "): " ++ wordEntry.meaning) ]
+        [ text (wordEntryToString wordEntry) ]
 
 
 showContent : Model -> String
@@ -541,6 +541,11 @@ showWordMatches model =
 
         _ ->
             ""
+
+
+wordEntryToString : WordEntry -> String
+wordEntryToString wordEntry =
+    wordEntry.word ++ " (" ++ wordEntry.kana ++ "): " ++ wordEntry.meaning
 
 
 onEnter : msg -> Attribute msg
