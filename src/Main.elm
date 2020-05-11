@@ -23,6 +23,11 @@ maxKanjiGrade =
     3
 
 
+maxHP : Int
+maxHP =
+    10
+
+
 
 -- MAIN
 
@@ -110,6 +115,7 @@ type alias Model =
     , msg : Maybe String
     , kanjis : List Kanji
     , jokerWord : Maybe WordEntry
+    , hp : Int
     }
 
 
@@ -122,6 +128,7 @@ initModel =
     , msg = Nothing
     , kanjis = []
     , jokerWord = Nothing
+    , hp = maxHP
     }
 
 
@@ -210,7 +217,12 @@ update msg model =
                     )
 
                 Err "" ->
-                    ( giveUp model, drawKanji model.kanjis )
+                    case model.hp of
+                        1 ->
+                            ( { model | msg = Just "Can't give up with only 1 心 left !" }, Cmd.none )
+
+                        _ ->
+                            ( giveUp model, drawKanji model.kanjis )
 
                 _ ->
                     ( model, Cmd.none )
@@ -276,7 +288,7 @@ giveUp model =
                 Nothing ->
                     "Did not have any joker..."
     in
-    { model | content = emptyContent, msg = Just newMsg }
+    { model | content = emptyContent, msg = Just newMsg, hp = model.hp - 1 }
 
 
 getKanjis : Cmd Msg
@@ -341,6 +353,7 @@ noMatch model =
     { model
         | content = emptyContent
         , msg = Just ("No match for " ++ showContent model ++ " !")
+        , hp = model.hp - 1
     }
 
 
@@ -443,12 +456,27 @@ subscriptions _ =
 
 view : Model -> Html Msg
 view model =
+    if model.hp > 0 then
+        div []
+            [ infoDiv model
+            , kanjiToMatchDiv model
+            , wordInputDiv model
+            , hintDiv model
+            , historyDiv model
+            ]
+
+    else
+        div []
+            [ infoDiv model
+            , div [ style "font-size" "8em" ] [ text "Game over !!!" ]
+            , historyDiv model
+            ]
+
+
+infoDiv : Model -> Html Msg
+infoDiv model =
     div []
-        [ kanjiToMatchDiv model
-        , wordInputDiv model
-        , hintDiv model
-        , historyDiv model
-        ]
+        [ text ("心ｘ" ++ String.fromInt model.hp) ]
 
 
 kanjiToMatchDiv : Model -> Html Msg
