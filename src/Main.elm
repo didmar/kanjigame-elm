@@ -7,6 +7,7 @@ import Html.Events exposing (keyCode, on, onInput)
 import Http
 import Json.Decode as Json
 import Random
+import Time exposing (every)
 
 
 
@@ -26,6 +27,11 @@ maxKanjiGrade =
 maxHP : Int
 maxHP =
     10
+
+
+maxTimer : Int
+maxTimer =
+    30
 
 
 
@@ -107,6 +113,18 @@ emptyContent =
     { romaji = "", converted = Err "" }
 
 
+type alias Timer =
+    { active : Bool
+    , value : Int
+    , maxValue : Int
+    }
+
+
+initTimer : Timer
+initTimer =
+    { active = True, value = maxTimer, maxValue = maxTimer }
+
+
 type alias Model =
     { kanjiToMatch : KanjiEntry
     , content : Content
@@ -116,6 +134,7 @@ type alias Model =
     , kanjis : List Kanji
     , jokerWord : Maybe WordEntry
     , hp : Int
+    , timer : Timer
     }
 
 
@@ -129,6 +148,7 @@ initModel =
     , kanjis = []
     , jokerWord = Nothing
     , hp = maxHP
+    , timer = initTimer
     }
 
 
@@ -152,6 +172,7 @@ type Msg
     | GotConverted (Result Http.Error (Result String Hiragana))
     | Enter
     | GotWordMatches (Result Http.Error WordEntries)
+    | Tick Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -245,6 +266,29 @@ update msg model =
                     ( { model | content = emptyContent }
                     , Cmd.none
                     )
+
+        Tick newTime ->
+            ( updateTimer model, Cmd.none )
+
+
+updateTimer : Model -> Model
+updateTimer model =
+    let
+        upd timer =
+            if timer.value > 1 then
+                ( { timer | value = timer.value - 1 }, False )
+
+            else
+                ( { timer | value = timer.maxValue }, True )
+
+        ( newTimer, reset ) =
+            upd model.timer
+    in
+    if reset then
+        { model | timer = newTimer, hp = max (model.hp - 1) 0 }
+
+    else
+        { model | timer = newTimer }
 
 
 getKanjiDetails : Kanji -> Cmd Msg
@@ -446,8 +490,12 @@ kanaDecoder =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    if model.timer.active then
+        every 1000 Tick
+
+    else
+        Sub.none
 
 
 
@@ -476,7 +524,7 @@ view model =
 infoDiv : Model -> Html Msg
 infoDiv model =
     div []
-        [ text ("心ｘ" ++ String.fromInt model.hp) ]
+        [ text ("心ｘ" ++ String.fromInt model.hp ++ " タイマ: " ++ String.fromInt model.timer.value) ]
 
 
 kanjiToMatchDiv : Model -> Html Msg
