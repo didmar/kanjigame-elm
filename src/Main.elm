@@ -21,8 +21,8 @@ apiBaseURL =
     "http://127.0.0.1:9000"
 
 
-maxKanjiGrade : Int
-maxKanjiGrade =
+minJLPTLevel : Int
+minJLPTLevel =
     3
 
 
@@ -69,7 +69,7 @@ type alias Kanji =
 type alias KanjiEntry =
     { kanji : Kanji
     , meaning : Maybe String
-    , grade : Maybe Int
+    , jlpt : Maybe Int
     }
 
 
@@ -84,7 +84,7 @@ defaultKanji =
 -}
 defaultKanjiEntry : KanjiEntry
 defaultKanjiEntry =
-    { kanji = defaultKanji, meaning = Nothing, grade = Nothing }
+    { kanji = defaultKanji, meaning = Nothing, jlpt = Nothing }
 
 
 {-| Word selected by the Jamdict API
@@ -364,7 +364,7 @@ kanjiEntryDecoder =
     Json.map3 KanjiEntry
         (Json.field "kanji" Json.string)
         (Json.field "meaning" (Json.maybe Json.string))
-        (Json.field "grade" (Json.maybe Json.int))
+        (Json.field "jlpt" (Json.maybe Json.int))
 
 
 updateKanjiToMatch : Model -> Kanji -> Model
@@ -374,7 +374,7 @@ updateKanjiToMatch model newKanji =
             removeFromList newKanji model.unseenKanjis
     in
     { model
-        | kanjiToMatch = { kanji = newKanji, meaning = Nothing, grade = Nothing }
+        | kanjiToMatch = { kanji = newKanji, meaning = Nothing, jlpt = Nothing }
         , unseenKanjis =
             if List.isEmpty newUnseenKanjis then
                 model.kanjis
@@ -415,7 +415,7 @@ giveUp model =
 getKanjis : Cmd Msg
 getKanjis =
     getJson
-        (Url.relative [ apiBaseURL, "kanjis" ] [ Url.int "max_grade" maxKanjiGrade ])
+        (Url.relative [ apiBaseURL, "kanjis" ] [ Url.int "min_jlpt" minJLPTLevel ])
         kanjisDecoder
         GotKanjis
 
@@ -462,7 +462,7 @@ getJokerWord kanji =
     getJson
         (Url.relative
             [ apiBaseURL, "find-word-with-kanji", kanji ]
-            [ Url.int "max_kanji_grade" maxKanjiGrade ]
+            [ Url.int "min_jlpt" minJLPTLevel ]
         )
         jokerWordDecoder
         GotJokerWord
@@ -649,6 +649,7 @@ viewInfos model =
                 ++ String.fromInt (List.length model.unseenKanjis)
                 ++ "／"
                 ++ String.fromInt (List.length model.kanjis)
+                ++ (" (" ++ showJLPT minJLPTLevel ++ ")")
             )
         ]
 
@@ -675,9 +676,20 @@ viewKanjiMeaning : KanjiEntry -> Html Msg
 viewKanjiMeaning kanjiEntry =
     div
         [ style "font-size" "medium" ]
-        [ text (Maybe.withDefault "" kanjiEntry.meaning)
-        , viewKanjiDictLink kanjiEntry.kanji
+        [ div
+            []
+            [ text (Maybe.withDefault "" kanjiEntry.meaning)
+            , viewKanjiDictLink kanjiEntry.kanji
+            ]
+        , div
+            [ style "color" "gray" ]
+            [ text (Maybe.withDefault "" (Maybe.map showJLPT kanjiEntry.jlpt)) ]
         ]
+
+
+showJLPT : Int -> String
+showJLPT jlpt =
+    "JLPT N" ++ String.fromInt jlpt
 
 
 viewKanjiDictLink : Kanji -> Html Msg
