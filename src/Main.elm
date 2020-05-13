@@ -271,13 +271,19 @@ update message model =
                             )
 
                         firstWordMatch :: otherWordMatches ->
-                            let
-                                newModel =
-                                    addMatchedWord model firstWordMatch otherWordMatches
-                            in
-                            ( newModel
-                            , drawKanji newModel
-                            )
+                            if alreadySubmitted model firstWordMatch.word then
+                                ( { model | message = Just "Already used this word before !" }
+                                , Cmd.none
+                                )
+
+                            else
+                                let
+                                    newModel =
+                                        addMatchedWord model firstWordMatch otherWordMatches
+                                in
+                                ( newModel
+                                , drawKanji newModel
+                                )
 
                 Err _ ->
                     ( { model | input = emptyInput }
@@ -286,6 +292,11 @@ update message model =
 
         Ticked newTime ->
             ( updateTimer model, Cmd.none )
+
+
+alreadySubmitted : Model -> ValidWord -> Bool
+alreadySubmitted model word =
+    List.member word (List.map .word model.history)
 
 
 updateTimer : Model -> Model
