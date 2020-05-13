@@ -1,9 +1,10 @@
 module Main exposing (..)
 
+import Array exposing (..)
 import Browser
 import Html exposing (..)
-import Html.Attributes exposing (href, placeholder, src, style, target, value)
-import Html.Events exposing (keyCode, on, onInput)
+import Html.Attributes exposing (checked, disabled, href, name, placeholder, src, style, target, type_, value)
+import Html.Events exposing (keyCode, on, onClick, onInput)
 import Http
 import Json.Decode as Json
 import Random
@@ -132,7 +133,8 @@ initTimer =
 type alias Model =
     { kanjiToMatch : KanjiEntry
     , input : Input
-    , wordMatches : WordEntries
+    , wordMatches : Array WordEntry
+    , selectedIndex : Maybe Int
     , history : WordEntries
     , message : Maybe String
     , kanjis : List Kanji
@@ -147,7 +149,8 @@ initModel : Model
 initModel =
     { kanjiToMatch = defaultKanjiEntry
     , input = emptyInput
-    , wordMatches = []
+    , wordMatches = Array.empty
+    , selectedIndex = Nothing
     , history = []
     , message = Nothing
     , kanjis = []
@@ -178,12 +181,15 @@ type Msg
     | GotConverted (Result Http.Error (Result String Hiragana))
     | SubmittedInput
     | GotWordMatches (Result Http.Error WordEntries)
+    | WordSelected String
+    | SelectionConfirmed
     | Ticked Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
-    case Debug.log "Msg" message of
+    -- case Debug.log "Msg" message of
+    case message of
         GotKanjis result ->
             case result of
                 Ok kanjis ->
@@ -270,33 +276,59 @@ update message model =
                             , Cmd.none
                             )
 
-                        firstWordMatch :: otherWordMatches ->
-                            if alreadySubmitted model firstWordMatch.word then
-                                ( { model | message = Just "Already used this word before !" }
-                                , Cmd.none
-                                )
+                        _ ->
+                            case filterNotAlreadySubmitted model wordMatches of
+                                [] ->
+                                    ( { model | message = Just "Already used this word before !" }
+                                    , Cmd.none
+                                    )
 
-                            else
-                                let
-                                    newModel =
-                                        addMatchedWord model firstWordMatch otherWordMatches
-                                in
-                                ( newModel
-                                , drawKanji newModel
-                                )
+                                w :: [] ->
+                                    let
+                                        newModel =
+                                            addWord model w
+                                    in
+                                    ( newModel
+                                    , drawKanji newModel
+                                    )
+
+                                ws ->
+                                    ( { model | wordMatches = Array.fromList ws }
+                                    , Cmd.none
+                                    )
 
                 Err _ ->
                     ( { model | input = emptyInput }
                     , Cmd.none
                     )
 
+        WordSelected index ->
+            ( { model | selectedIndex = String.toInt index }, Cmd.none )
+
+        SelectionConfirmed ->
+            case model.selectedIndex of
+                Just index ->
+                    case Array.get index model.wordMatches of
+                        Just wordEntry ->
+                            ( addWord model wordEntry, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                Nothing ->
+                    ( { model | message = Just "You must select one of the words !" }, Cmd.none )
+
         Ticked newTime ->
             ( updateTimer model, Cmd.none )
 
 
-alreadySubmitted : Model -> ValidWord -> Bool
-alreadySubmitted model word =
-    List.member word (List.map .word model.history)
+filterNotAlreadySubmitted : Model -> List WordEntry -> List WordEntry
+filterNotAlreadySubmitted model wordMatches =
+    let
+        notInHistory wordEntry =
+            not (List.member wordEntry.word (List.map .word model.history))
+    in
+    List.filter notInHistory wordMatches
 
 
 updateTimer : Model -> Model
@@ -478,11 +510,11 @@ noMatch model =
     }
 
 
-addMatchedWord : Model -> WordEntry -> WordEntries -> Model
-addMatchedWord model firstWordMatch otherWordMatches =
+addWord : Model -> WordEntry -> Model
+addWord model wordEntry =
     { model
-        | wordMatches = firstWordMatch :: otherWordMatches
-        , history = firstWordMatch :: model.history
+        | history = wordEntry :: model.history
+        , wordMatches = Array.empty
         , input = emptyInput
         , jokerWord = Nothing
     }
@@ -593,6 +625,7 @@ view model =
             , viewInput model
             , viewMessage model
             , viewHint model
+            , viewWordSelector model
             , viewHistory model
             ]
 
@@ -671,6 +704,7 @@ viewInput model =
             , value model.input.romaji
             , onInput UpdatedInput
             , onEnter SubmittedInput
+            , disabled (not (Array.isEmpty model.wordMatches))
             ]
             []
         , div
@@ -702,11 +736,6 @@ viewHint model =
     div
         [ style "font-size" "medium" ]
         elems
-
-
-viewWordMatches : Model -> Html Msg
-viewWordMatches model =
-    div [ style "font-size" "medium" ] [ text (showWordMatches model) ]
 
 
 viewHistory : Model -> Html Msg
@@ -742,6 +771,38 @@ viewWordDictLink wordEntry =
         ]
 
 
+viewWordSelector : Model -> Html Msg
+viewWordSelector model =
+    if Array.isEmpty model.wordMatches then
+        div [] []
+
+    else
+        div []
+            [ text "Choose a word:"
+            , ul [ style "list-style-type" "none" ]
+                (List.map
+                    (\( idx, wordEntry ) ->
+                        div
+                            []
+                            [ li [ style "font-size" "medium" ]
+                                [ input
+                                    [ type_ "radio"
+                                    , name "entrySelector"
+                                    , value <| String.fromInt idx
+                                    , onInput WordSelected
+                                    , checked <| Just idx == model.selectedIndex
+                                    ]
+                                    []
+                                , text wordEntry.word
+                                ]
+                            ]
+                    )
+                    (Array.toIndexedList model.wordMatches)
+                )
+            , button [ onClick SelectionConfirmed ] [ text "Confirm" ]
+            ]
+
+
 showInput : Model -> String
 showInput model =
     case model.input.converted of
@@ -750,16 +811,6 @@ showInput model =
 
         Err string ->
             string
-
-
-showWordMatches : Model -> String
-showWordMatches model =
-    case List.head model.wordMatches of
-        Just wordMatch ->
-            wordMatch.word
-
-        _ ->
-            ""
 
 
 wordEntryToString : WordEntry -> String
