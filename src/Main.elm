@@ -78,6 +78,8 @@ defaultKanji =
     "一"
 
 
+{-| Required only to initialize the model, will be replaced by a random one
+-}
 defaultKanjiEntry : KanjiEntry
 defaultKanjiEntry =
     { kanji = defaultKanji, meaning = Nothing, grade = Nothing }
@@ -102,14 +104,14 @@ type alias WordEntries =
     List WordEntry
 
 
-type alias Content =
+type alias Input =
     { romaji : String
     , converted : Result String Hiragana
     }
 
 
-emptyContent : Content
-emptyContent =
+emptyInput : Input
+emptyInput =
     { romaji = "", converted = Err "" }
 
 
@@ -127,10 +129,10 @@ initTimer =
 
 type alias Model =
     { kanjiToMatch : KanjiEntry
-    , content : Content
+    , input : Input
     , wordMatches : WordEntries
     , history : WordEntries
-    , msg : Maybe String
+    , message : Maybe String
     , kanjis : List Kanji
     , jokerWord : Maybe WordEntry
     , hp : Int
@@ -141,10 +143,10 @@ type alias Model =
 initModel : Model
 initModel =
     { kanjiToMatch = defaultKanjiEntry
-    , content = emptyContent
+    , input = emptyInput
     , wordMatches = []
     , history = []
-    , msg = Nothing
+    , message = Nothing
     , kanjis = []
     , jokerWord = Nothing
     , hp = maxHP
@@ -165,19 +167,19 @@ init _ =
 
 type Msg
     = GotKanjis (Result Http.Error (List Kanji))
-    | NewKanji Kanji
-    | GotKanjiDetails (Result Http.Error KanjiEntry)
+    | PickedKanji Kanji
+    | GotKanjiEntry (Result Http.Error KanjiEntry)
     | GotJokerWord (Result Http.Error (Maybe WordEntry))
-    | InputRomaji String
+    | UpdatedInput String
     | GotConverted (Result Http.Error (Result String Hiragana))
-    | Enter
+    | SubmittedInput
     | GotWordMatches (Result Http.Error WordEntries)
-    | Tick Time.Posix
+    | Ticked Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case Debug.log "Msg" msg of
+update message model =
+    case Debug.log "Msg" message of
         GotKanjis result ->
             case result of
                 Ok kanjis ->
@@ -188,12 +190,12 @@ update msg model =
                 Err _ ->
                     ( model, Cmd.none )
 
-        NewKanji newKanji ->
+        PickedKanji newKanji ->
             ( updateKanjiToMatch model newKanji
             , Cmd.batch [ getJokerWord newKanji, getKanjiDetails newKanji ]
             )
 
-        GotKanjiDetails result ->
+        GotKanjiEntry result ->
             case result of
                 Ok kanjiEntry ->
                     ( { model | kanjiToMatch = kanjiEntry }
@@ -213,10 +215,10 @@ update msg model =
                 Err _ ->
                     ( model, Cmd.none )
 
-        InputRomaji romaji ->
+        UpdatedInput romaji ->
             case romaji of
                 "" ->
-                    ( { model | content = emptyContent, msg = Nothing }
+                    ( { model | input = emptyInput, message = Nothing }
                     , Cmd.none
                     )
 
@@ -230,8 +232,8 @@ update msg model =
             , Cmd.none
             )
 
-        Enter ->
-            case model.content.converted of
+        SubmittedInput ->
+            case model.input.converted of
                 Ok hiragana ->
                     ( model
                     , searchWord hiragana model.kanjiToMatch.kanji
@@ -240,7 +242,7 @@ update msg model =
                 Err "" ->
                     case model.hp of
                         1 ->
-                            ( { model | msg = Just "Can't give up with only 1 心 left !" }, Cmd.none )
+                            ( { model | message = Just "Can't give up with only 1 心 left !" }, Cmd.none )
 
                         _ ->
                             ( giveUp model, drawKanji model.kanjis )
@@ -263,11 +265,11 @@ update msg model =
                             )
 
                 Err _ ->
-                    ( { model | content = emptyContent }
+                    ( { model | input = emptyInput }
                     , Cmd.none
                     )
 
-        Tick newTime ->
+        Ticked newTime ->
             ( updateTimer model, Cmd.none )
 
 
@@ -296,7 +298,7 @@ getKanjiDetails kanji =
     getJson
         (apiBaseURL ++ "kanji-details/" ++ kanji)
         kanjiEntryDecoder
-        GotKanjiDetails
+        GotKanjiEntry
 
 
 kanjiEntryDecoder : Json.Decoder KanjiEntry
@@ -315,10 +317,10 @@ updateKanjiToMatch model newKanji =
 updateRomaji : Model -> String -> Model
 updateRomaji model romaji =
     let
-        upd content =
-            { content | romaji = romaji }
+        upd input =
+            { input | romaji = romaji }
     in
-    { model | content = upd model.content, msg = Nothing }
+    { model | input = upd model.input, message = Nothing }
 
 
 giveUp : Model -> Model
@@ -332,7 +334,7 @@ giveUp model =
                 Nothing ->
                     "Did not have any joker..."
     in
-    { model | content = emptyContent, msg = Just newMsg, hp = model.hp - 1 }
+    { model | input = emptyInput, message = Just newMsg, hp = model.hp - 1 }
 
 
 getKanjis : Cmd Msg
@@ -349,7 +351,7 @@ kanjisDecoder =
 
 drawKanji : List Kanji -> Cmd Msg
 drawKanji kanjis =
-    Random.generate NewKanji (kanjiGenerator kanjis)
+    Random.generate PickedKanji (kanjiGenerator kanjis)
 
 
 getJokerWord : Kanji -> Cmd Msg
@@ -383,10 +385,10 @@ updateConverted model result =
     case result of
         Ok converted ->
             let
-                upd content =
-                    { content | converted = converted }
+                upd input =
+                    { input | converted = converted }
             in
-            { model | content = upd model.content }
+            { model | input = upd model.input }
 
         Err _ ->
             model
@@ -395,8 +397,8 @@ updateConverted model result =
 noMatch : Model -> Model
 noMatch model =
     { model
-        | content = emptyContent
-        , msg = Just ("No match for " ++ showContent model ++ " !")
+        | input = emptyInput
+        , message = Just ("No match for " ++ showInput model ++ " !")
         , hp = model.hp - 1
     }
 
@@ -406,7 +408,7 @@ addMatchedWord model firstWordMatch otherWordMatches =
     { model
         | wordMatches = firstWordMatch :: otherWordMatches
         , history = firstWordMatch :: model.history
-        , content = emptyContent
+        , input = emptyInput
     }
 
 
@@ -492,7 +494,7 @@ kanaDecoder =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     if model.timer.active then
-        every 1000 Tick
+        every 1000 Ticked
 
     else
         Sub.none
@@ -506,37 +508,38 @@ view : Model -> Html Msg
 view model =
     if model.hp > 0 then
         div []
-            [ infoDiv model
-            , kanjiToMatchDiv model
-            , wordInputDiv model
-            , hintDiv model
-            , historyDiv model
+            [ viewInfos model
+            , viewKanjiToMatch model
+            , viewInput model
+            , viewMessage model
+            , viewHint model
+            , viewHistory model
             ]
 
     else
         div []
-            [ infoDiv model
+            [ viewInfos model
             , div [ style "font-size" "8em" ] [ text "Game over !!!" ]
-            , historyDiv model
+            , viewHistory model
             ]
 
 
-infoDiv : Model -> Html Msg
-infoDiv model =
+viewInfos : Model -> Html Msg
+viewInfos model =
     div []
         [ text ("心ｘ" ++ String.fromInt model.hp ++ " タイマ: " ++ String.fromInt model.timer.value) ]
 
 
-kanjiToMatchDiv : Model -> Html Msg
-kanjiToMatchDiv model =
+viewKanjiToMatch : Model -> Html Msg
+viewKanjiToMatch model =
     div [ style "min-height" "55pt" ]
-        [ kanjiDiv model.kanjiToMatch.kanji
-        , kanjiMeaningDiv model.kanjiToMatch
+        [ viewKanji model.kanjiToMatch.kanji
+        , viewKanjiMeaning model.kanjiToMatch
         ]
 
 
-kanjiDiv : Kanji -> Html Msg
-kanjiDiv kanji =
+viewKanji : Kanji -> Html Msg
+viewKanji kanji =
     div
         [ style "font-size" "xxx-large"
         , style "float" "left"
@@ -545,8 +548,8 @@ kanjiDiv kanji =
         [ text (kanji ++ "?") ]
 
 
-kanjiMeaningDiv : KanjiEntry -> Html Msg
-kanjiMeaningDiv kanjiEntry =
+viewKanjiMeaning : KanjiEntry -> Html Msg
+viewKanjiMeaning kanjiEntry =
     div
         [ style "font-size" "medium" ]
         [ text (Maybe.withDefault "" kanjiEntry.meaning)
@@ -569,37 +572,34 @@ viewKanjiDictLink kanji =
         ]
 
 
-wordInputDiv : Model -> Html Msg
-wordInputDiv model =
+viewInput : Model -> Html Msg
+viewInput model =
     div
         []
         [ input
             [ placeholder ("Type a word with " ++ model.kanjiToMatch.kanji)
-            , value model.content.romaji
-            , onInput InputRomaji
-            , onEnter Enter
+            , value model.input.romaji
+            , onInput UpdatedInput
+            , onEnter SubmittedInput
             ]
             []
-        , hiraganaOrMsgDiv model
+        , div
+            [ style "font-size" "medium"
+            , style "min-height" "18pt"
+            ]
+            [ text (showInput model) ]
         ]
 
 
-hiraganaOrMsgDiv : Model -> Html Msg
-hiraganaOrMsgDiv model =
-    let
-        ( color, txt ) =
-            case model.msg of
-                Just msg ->
-                    ( "red", msg )
-
-                Nothing ->
-                    ( "black", showContent model )
-    in
-    div [ style "font-size" "medium", style "min-height" "18pt", style "color" color ] [ text txt ]
+viewMessage : Model -> Html Msg
+viewMessage model =
+    div
+        [ style "font-size" "medium", style "min-height" "18pt", style "color" "red" ]
+        [ text (Maybe.withDefault "" model.message) ]
 
 
-hintDiv : Model -> Html Msg
-hintDiv model =
+viewHint : Model -> Html Msg
+viewHint model =
     let
         elems =
             case model.jokerWord of
@@ -614,20 +614,20 @@ hintDiv model =
         elems
 
 
-wordMatchesDiv : Model -> Html Msg
-wordMatchesDiv model =
+viewWordMatches : Model -> Html Msg
+viewWordMatches model =
     div [ style "font-size" "medium" ] [ text (showWordMatches model) ]
 
 
-historyDiv : Model -> Html Msg
-historyDiv model =
+viewHistory : Model -> Html Msg
+viewHistory model =
     ul
         []
-        (List.map wordEntryLi model.history)
+        (List.map viewWordEntry model.history)
 
 
-wordEntryLi : WordEntry -> Html Msg
-wordEntryLi wordEntry =
+viewWordEntry : WordEntry -> Html Msg
+viewWordEntry wordEntry =
     li
         [ style "font-size" "medium"
         , style "height" "18pt"
@@ -652,9 +652,9 @@ viewWordDictLink wordEntry =
         ]
 
 
-showContent : Model -> String
-showContent model =
-    case model.content.converted of
+showInput : Model -> String
+showInput model =
+    case model.input.converted of
         Ok hiragana ->
             hiragana
 
