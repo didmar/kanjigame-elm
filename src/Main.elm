@@ -9,7 +9,10 @@ import Http
 import Json.Decode as Json
 import Random
 import Time exposing (every)
-import Url.Builder as Url
+import Url
+import Url.Builder as UB
+import Url.Parser as UP
+import Url.Parser.Query as UPQ
 
 
 
@@ -19,11 +22,6 @@ import Url.Builder as Url
 apiBaseURL : String
 apiBaseURL =
     "http://127.0.0.1:9000"
-
-
-minJLPTLevel : Int
-minJLPTLevel =
-    3
 
 
 maxHP : Int
@@ -40,7 +38,7 @@ maxTimer =
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program String Model Msg
 main =
     Browser.element
         { init = init
@@ -142,11 +140,12 @@ type alias Model =
     , jokerWord : Maybe WordEntry
     , hp : Int
     , timer : Timer
+    , params : Params
     }
 
 
-initModel : Model
-initModel =
+initModel : Params -> Model
+initModel params =
     { kanjiToMatch = defaultKanjiEntry
     , input = emptyInput
     , wordMatches = Array.empty
@@ -158,14 +157,41 @@ initModel =
     , jokerWord = Nothing
     , hp = maxHP
     , timer = initTimer
+    , params = params
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( initModel
-    , getKanjis
+type alias Params =
+    { minJLPTLevel : Int }
+
+
+init : String -> ( Model, Cmd Msg )
+init query =
+    let
+        model =
+            initModel (locationHrefToParams query)
+    in
+    ( model
+    , getKanjis model
     )
+
+
+defaultParams : Params
+defaultParams =
+    { minJLPTLevel = 3 }
+
+
+locationHrefToParams : String -> Params
+locationHrefToParams locationHref =
+    Url.fromString locationHref
+        |> Maybe.andThen (\url -> UP.parse queryArgsParser url)
+        |> Maybe.map (\minJLPTLevel -> { minJLPTLevel = Maybe.withDefault 3 minJLPTLevel })
+        |> Maybe.withDefault defaultParams
+
+
+queryArgsParser : UP.Parser (Maybe Int -> a) a
+queryArgsParser =
+    UP.query (UPQ.int "jlpt")
 
 
 
@@ -209,7 +235,10 @@ update message model =
 
         PickedKanji newKanji ->
             ( updateKanjiToMatch model newKanji
-            , Cmd.batch [ getJokerWord newKanji, getKanjiDetails newKanji ]
+            , Cmd.batch
+                [ getJokerWord newKanji model.params.minJLPTLevel
+                , getKanjiDetails newKanji
+                ]
             )
 
         GotKanjiEntry result ->
@@ -354,7 +383,7 @@ updateTimer model =
 getKanjiDetails : Kanji -> Cmd Msg
 getKanjiDetails kanji =
     getJson
-        (Url.relative [ apiBaseURL, "kanji-details", kanji ] [])
+        (UB.relative [ apiBaseURL, "kanji-details", kanji ] [])
         kanjiEntryDecoder
         GotKanjiEntry
 
@@ -412,10 +441,10 @@ giveUp model =
     }
 
 
-getKanjis : Cmd Msg
-getKanjis =
+getKanjis : Model -> Cmd Msg
+getKanjis model =
     getJson
-        (Url.relative [ apiBaseURL, "kanjis" ] [ Url.int "min_jlpt" minJLPTLevel ])
+        (UB.relative [ apiBaseURL, "kanjis" ] [ UB.int "min_jlpt" model.params.minJLPTLevel ])
         kanjisDecoder
         GotKanjis
 
@@ -436,7 +465,7 @@ drawKanji model =
                 lastWord :: _ ->
                     candidateKanjisFromWord lastWord model.unseenKanjis
     in
-    drawKanjiFromList (Debug.log "draw from" kanjis)
+    drawKanjiFromList kanjis
 
 
 candidateKanjisFromWord : WordEntry -> List Kanji -> List Kanji
@@ -457,12 +486,12 @@ drawKanjiFromList kanjis =
     Random.generate PickedKanji (kanjiGenerator kanjis)
 
 
-getJokerWord : Kanji -> Cmd Msg
-getJokerWord kanji =
+getJokerWord : Kanji -> Int -> Cmd Msg
+getJokerWord kanji minJLPTLevel =
     getJson
-        (Url.relative
+        (UB.relative
             [ apiBaseURL, "find-word-with-kanji", kanji ]
-            [ Url.int "min_jlpt" minJLPTLevel ]
+            [ UB.int "min_jlpt" minJLPTLevel ]
         )
         jokerWordDecoder
         GotJokerWord
@@ -528,7 +557,7 @@ romajiToHiragana romaji =
 
         _ ->
             getJson
-                (Url.relative [ apiBaseURL, "to-hiragana", romaji ] [])
+                (UB.relative [ apiBaseURL, "to-hiragana", romaji ] [])
                 convertedDecoder
                 GotConverted
 
@@ -550,9 +579,9 @@ convertedDecoder =
 searchWord : Hiragana -> Kanji -> Cmd Msg
 searchWord word kanjiToMatch =
     getJson
-        (Url.relative
+        (UB.relative
             [ apiBaseURL, "lookup-words", word ]
-            [ Url.string "kanji_to_match" kanjiToMatch ]
+            [ UB.string "kanji_to_match" kanjiToMatch ]
         )
         wordEntriesDecoder
         GotWordMatches
@@ -649,7 +678,7 @@ viewInfos model =
                 ++ String.fromInt (List.length model.unseenKanjis)
                 ++ "／"
                 ++ String.fromInt (List.length model.kanjis)
-                ++ (" (" ++ showJLPT minJLPTLevel ++ ")")
+                ++ (" (" ++ showJLPT model.params.minJLPTLevel ++ ")")
             )
         ]
 
@@ -696,7 +725,7 @@ viewKanjiDictLink : Kanji -> Html Msg
 viewKanjiDictLink kanji =
     a
         [ target "_blank"
-        , href (Url.relative [ "https://jisho.org/search", kanji ++ " #kanji" ] [])
+        , href (UB.relative [ "https://jisho.org/search", kanji ++ " #kanji" ] [])
         ]
         [ img
             [ src "images/ext-link.svg"
@@ -772,7 +801,7 @@ viewWordDictLink : WordEntry -> Html Msg
 viewWordDictLink wordEntry =
     a
         [ target "_blank"
-        , href (Url.relative [ "https://jisho.org/search", wordEntry.word ++ " #words" ] [])
+        , href (UB.relative [ "https://jisho.org/search", wordEntry.word ++ " #words" ] [])
         ]
         [ img
             [ src "images/ext-link.svg"
