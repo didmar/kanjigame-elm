@@ -98,6 +98,7 @@ type alias WordEntry =
     { word : ValidWord
     , kana : String
     , meaning : String
+    , kanjis : List Kanji
     }
 
 
@@ -135,6 +136,7 @@ type alias Model =
     , history : WordEntries
     , message : Maybe String
     , kanjis : List Kanji
+    , unseenKanjis : List Kanji
     , jokerWord : Maybe WordEntry
     , hp : Int
     , timer : Timer
@@ -149,6 +151,7 @@ initModel =
     , history = []
     , message = Nothing
     , kanjis = []
+    , unseenKanjis = []
     , jokerWord = Nothing
     , hp = maxHP
     , timer = initTimer
@@ -184,8 +187,15 @@ update message model =
         GotKanjis result ->
             case result of
                 Ok kanjis ->
-                    ( { model | kanjis = kanjis }
-                    , drawKanji kanjis
+                    let
+                        newModel =
+                            { model
+                                | kanjis = kanjis
+                                , unseenKanjis = kanjis
+                            }
+                    in
+                    ( newModel
+                    , drawKanji newModel
                     )
 
                 Err _ ->
@@ -246,7 +256,7 @@ update message model =
                             ( { model | message = Just "Can't give up with only 1 心 left !" }, Cmd.none )
 
                         _ ->
-                            ( giveUp model, drawKanji model.kanjis )
+                            ( giveUp model, drawKanji model )
 
                 _ ->
                     ( model, Cmd.none )
@@ -261,8 +271,12 @@ update message model =
                             )
 
                         firstWordMatch :: otherWordMatches ->
-                            ( addMatchedWord model firstWordMatch otherWordMatches
-                            , drawKanji model.kanjis
+                            let
+                                newModel =
+                                    addMatchedWord model firstWordMatch otherWordMatches
+                            in
+                            ( newModel
+                            , drawKanji newModel
                             )
 
                 Err _ ->
@@ -312,7 +326,19 @@ kanjiEntryDecoder =
 
 updateKanjiToMatch : Model -> Kanji -> Model
 updateKanjiToMatch model newKanji =
-    { model | kanjiToMatch = { kanji = newKanji, meaning = Nothing, grade = Nothing } }
+    let
+        newUnseenKanjis =
+            removeFromList newKanji model.unseenKanjis
+    in
+    { model
+        | kanjiToMatch = { kanji = newKanji, meaning = Nothing, grade = Nothing }
+        , unseenKanjis =
+            if List.isEmpty newUnseenKanjis then
+                model.kanjis
+
+            else
+                newUnseenKanjis
+    }
 
 
 updateRomaji : Model -> String -> Model
@@ -356,8 +382,35 @@ kanjisDecoder =
     Json.field "kanjis" (Json.list Json.string)
 
 
-drawKanji : List Kanji -> Cmd Msg
-drawKanji kanjis =
+drawKanji : Model -> Cmd Msg
+drawKanji model =
+    let
+        kanjis =
+            case model.history of
+                [] ->
+                    model.unseenKanjis
+
+                lastWord :: _ ->
+                    candidateKanjisFromWord lastWord model.unseenKanjis
+    in
+    drawKanjiFromList (Debug.log "draw from" kanjis)
+
+
+candidateKanjisFromWord : WordEntry -> List Kanji -> List Kanji
+candidateKanjisFromWord word unseenKanjis =
+    let
+        kanjis =
+            List.filter (\k -> List.member k unseenKanjis) word.kanjis
+    in
+    if List.isEmpty kanjis then
+        unseenKanjis
+
+    else
+        kanjis
+
+
+drawKanjiFromList : List Kanji -> Cmd Msg
+drawKanjiFromList kanjis =
     Random.generate PickedKanji (kanjiGenerator kanjis)
 
 
@@ -420,6 +473,7 @@ addMatchedWord model firstWordMatch otherWordMatches =
         | wordMatches = firstWordMatch :: otherWordMatches
         , history = firstWordMatch :: model.history
         , input = emptyInput
+        , jokerWord = Nothing
     }
 
 
@@ -481,10 +535,11 @@ wordEntriesDecoder =
 
 wordEntryDecoder : Json.Decoder WordEntry
 wordEntryDecoder =
-    Json.map3 WordEntry
+    Json.map4 WordEntry
         (Json.field "word" Json.string)
         kanaDecoder
         meaningDecoder
+        kanjisDecoder
 
 
 meaningDecoder : Json.Decoder String
@@ -541,7 +596,17 @@ view model =
 viewInfos : Model -> Html Msg
 viewInfos model =
     div []
-        [ text ("心ｘ" ++ String.fromInt model.hp ++ " タイマ: " ++ String.fromInt model.timer.value) ]
+        [ text
+            ("心ｘ"
+                ++ String.fromInt model.hp
+                ++ " タイマ："
+                ++ String.fromInt model.timer.value
+                ++ " 漢字："
+                ++ String.fromInt (List.length model.unseenKanjis)
+                ++ "／"
+                ++ String.fromInt (List.length model.kanjis)
+            )
+        ]
 
 
 viewKanjiToMatch : Model -> Html Msg
@@ -703,3 +768,23 @@ onEnter onEnterAction =
                     Json.fail (String.fromInt keyCode)
             )
             keyCode
+
+
+
+-- HELPERS
+
+
+{-| Remove the first occurrence of a value from a list.
+-}
+removeFromList : a -> List a -> List a
+removeFromList x xs =
+    case xs of
+        [] ->
+            []
+
+        y :: ys ->
+            if x == y then
+                ys
+
+            else
+                y :: removeFromList x ys
