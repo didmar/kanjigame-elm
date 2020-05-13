@@ -8,6 +8,7 @@ import Http
 import Json.Decode as Json
 import Random
 import Time exposing (every)
+import Url.Builder as Url
 
 
 
@@ -16,7 +17,7 @@ import Time exposing (every)
 
 apiBaseURL : String
 apiBaseURL =
-    "http://127.0.0.1:9000/"
+    "http://127.0.0.1:9000"
 
 
 maxKanjiGrade : Int
@@ -296,7 +297,7 @@ updateTimer model =
 getKanjiDetails : Kanji -> Cmd Msg
 getKanjiDetails kanji =
     getJson
-        (apiBaseURL ++ "kanji-details/" ++ kanji)
+        (Url.relative [ apiBaseURL, "kanji-details", kanji ] [])
         kanjiEntryDecoder
         GotKanjiEntry
 
@@ -334,12 +335,18 @@ giveUp model =
                 Nothing ->
                     "Did not have any joker..."
     in
-    { model | input = emptyInput, message = Just newMsg, hp = model.hp - 1 }
+    { model
+        | input = emptyInput
+        , jokerWord = Nothing
+        , message = Just newMsg
+        , hp = model.hp - 1
+    }
 
 
 getKanjis : Cmd Msg
 getKanjis =
-    getJson (apiBaseURL ++ "kanjis?max_grade=" ++ String.fromInt maxKanjiGrade)
+    getJson
+        (Url.relative [ apiBaseURL, "kanjis" ] [ Url.int "max_grade" maxKanjiGrade ])
         kanjisDecoder
         GotKanjis
 
@@ -356,7 +363,11 @@ drawKanji kanjis =
 
 getJokerWord : Kanji -> Cmd Msg
 getJokerWord kanji =
-    getJson (apiBaseURL ++ "find-word-with-kanji/" ++ kanji ++ "?max_kanji_grade=" ++ String.fromInt maxKanjiGrade)
+    getJson
+        (Url.relative
+            [ apiBaseURL, "find-word-with-kanji", kanji ]
+            [ Url.int "max_kanji_grade" maxKanjiGrade ]
+        )
         jokerWordDecoder
         GotJokerWord
 
@@ -420,7 +431,7 @@ romajiToHiragana romaji =
 
         _ ->
             getJson
-                (apiBaseURL ++ "to-hiragana/" ++ romaji)
+                (Url.relative [ apiBaseURL, "to-hiragana", romaji ] [])
                 convertedDecoder
                 GotConverted
 
@@ -442,7 +453,10 @@ convertedDecoder =
 searchWord : Hiragana -> Kanji -> Cmd Msg
 searchWord word kanjiToMatch =
     getJson
-        (apiBaseURL ++ "lookup-words/" ++ word ++ "?kanji_to_match=" ++ kanjiToMatch)
+        (Url.relative
+            [ apiBaseURL, "lookup-words", word ]
+            [ Url.string "kanji_to_match" kanjiToMatch ]
+        )
         wordEntriesDecoder
         GotWordMatches
 
@@ -561,7 +575,7 @@ viewKanjiDictLink : Kanji -> Html Msg
 viewKanjiDictLink kanji =
     a
         [ target "_blank"
-        , href ("https://jisho.org/search/" ++ kanji ++ " %23kanji")
+        , href (Url.relative [ "https://jisho.org/search", kanji ++ " #kanji" ] [])
         ]
         [ img
             [ src "images/ext-link.svg"
@@ -641,7 +655,7 @@ viewWordDictLink : WordEntry -> Html Msg
 viewWordDictLink wordEntry =
     a
         [ target "_blank"
-        , href ("https://jisho.org/search/" ++ wordEntry.word ++ " %23words")
+        , href (Url.relative [ "https://jisho.org/search", wordEntry.word ++ " #words" ] [])
         ]
         [ img
             [ src "images/ext-link.svg"
