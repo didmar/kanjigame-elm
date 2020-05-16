@@ -149,6 +149,7 @@ type alias Model =
     , timer : Timer
     , params : Params
     , score : Int
+    , combo : Int
     }
 
 
@@ -168,6 +169,7 @@ initModel params =
     , timer = initTimer
     , params = params
     , score = 0
+    , combo = 0
     }
 
 
@@ -402,7 +404,11 @@ updateTimer model =
             upd model.timer
     in
     if reset then
-        { model | timer = newTimer, hp = max (model.hp - 1) 0 }
+        { model
+            | timer = newTimer
+            , hp = max (model.hp - 1) 0
+            , combo = 0
+        }
 
     else
         { model | timer = newTimer }
@@ -468,6 +474,7 @@ giveUp model =
         , jokerWord = Nothing
         , message = Just newMsg
         , hp = model.hp - 1
+        , combo = 0
     }
 
 
@@ -571,32 +578,56 @@ noMatch model =
         | input = emptyInput
         , message = Just ("No match for " ++ showInput model ++ " !")
         , hp = model.hp - 1
+        , combo = 0
     }
 
 
 addWord : Model -> WordEntry -> Model
 addWord model wordEntry =
+    let
+        ( scoreIncr, comboIncr ) =
+            scoreAndComboIncrease model wordEntry
+    in
     { model
         | history = wordEntry :: model.history
         , wordMatches = Array.empty
         , input = emptyInput
         , jokerWord = Nothing
-        , score = model.score + scoreIncrease model wordEntry
+        , score = model.score + scoreIncr
+        , combo = model.combo + comboIncr
+        , message = Just ("+ " ++ String.fromInt scoreIncr ++ " points !")
     }
 
 
-scoreIncrease : Model -> WordEntry -> Int
-scoreIncrease model wordEntry =
+scoreAndComboIncrease : Model -> WordEntry -> ( Int, Int )
+scoreAndComboIncrease model wordEntry =
     let
-        kanjiScores =
+        kanjiEntries =
             wordEntry.kanjis
                 -- TODO deal properly with this
                 |> List.map (\kanji -> Dict.get kanji model.kanjis |> Maybe.withDefault defaultKanjiEntry)
-                |> List.map .jlpt
-                -- 5 pts for N1, 1 pts for N5
-                |> List.map (\jlpt -> 6 - jlpt)
+
+        kanjiScores =
+            -- 5 pts for N1, 1 pts for N5
+            List.map (\ke -> 6 - ke.jlpt) kanjiEntries
+
+        baseScoreIncr =
+            List.foldl (+) 0 kanjiScores
+
+        scoreIncr =
+            baseScoreIncr * (1 + model.combo)
+
+        unseenKanjis =
+            List.filter (\k -> List.member k.kanji model.unseenKanjis) kanjiEntries
+
+        comboIncr =
+            if List.isEmpty unseenKanjis then
+                0
+
+            else
+                1
     in
-    List.foldl (+) 0 kanjiScores
+    Debug.log "score and combo incr" ( scoreIncr, comboIncr )
 
 
 romajiToHiragana : String -> Cmd Msg
@@ -726,7 +757,9 @@ viewInfos model =
                 ++ String.fromInt model.timer.value
                 ++ " SCORE："
                 ++ String.fromInt model.score
-                ++ " 漢字："
+                ++ " (COMBO："
+                ++ String.fromInt model.combo
+                ++ ") 漢字："
                 ++ String.fromInt (List.length model.unseenKanjis)
                 ++ "／"
                 ++ String.fromInt (List.length model.candidateKanjis)
