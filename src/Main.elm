@@ -348,7 +348,11 @@ update message model =
                 Just index ->
                     case Array.get index model.wordMatches of
                         Just wordEntry ->
-                            ( addWord model wordEntry, Cmd.none )
+                            let
+                                newModel =
+                                    addWord model wordEntry
+                            in
+                            ( newModel, drawKanji newModel )
 
                         Nothing ->
                             ( model, Cmd.none )
