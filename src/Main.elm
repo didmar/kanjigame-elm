@@ -212,10 +212,19 @@ type Msg
     | Ticked Time.Posix
 
 
+withDebugLog : Msg -> Msg
+withDebugLog message =
+    case message of
+        Ticked _ ->
+            message
+
+        _ ->
+            Debug.log "Msg" message
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
-    -- case Debug.log "Msg" message of
-    case message of
+    case withDebugLog message of
         GotKanjis result ->
             case result of
                 Ok kanjis ->
