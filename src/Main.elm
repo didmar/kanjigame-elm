@@ -385,7 +385,17 @@ update message model =
                     ( { model | message = Just (BadNews "You must select one of the words !") }, Cmd.none )
 
         Ticked newTime ->
-            ( updateTimer model, Cmd.none )
+            let
+                ( newModel, lostLife ) =
+                    updateTimer model
+            in
+            ( newModel
+            , if lostLife then
+                drawKanji model
+
+              else
+                Cmd.none
+            )
 
 
 filterNotAlreadySubmitted : Model -> List WordEntry -> List WordEntry
@@ -397,28 +407,36 @@ filterNotAlreadySubmitted model wordMatches =
     List.filter notInHistory wordMatches
 
 
-updateTimer : Model -> Model
+resetTimer : Timer -> Timer
+resetTimer timer =
+    { timer | value = timer.maxValue }
+
+
+updateTimer : Model -> ( Model, Bool )
 updateTimer model =
-    let
-        upd timer =
-            if timer.value > 1 then
-                ( { timer | value = timer.value - 1 }, False )
+    if model.timer.value > 1 then
+        let
+            dcr timer =
+                { timer | value = timer.value - 1 }
 
-            else
-                ( { timer | value = timer.maxValue }, True )
-
-        ( newTimer, reset ) =
-            upd model.timer
-    in
-    if reset then
-        { model
-            | timer = newTimer
-            , hp = max (model.hp - 1) 0
-            , combo = 0
-        }
+            newTimer =
+                dcr model.timer
+        in
+        ( { model | timer = newTimer }, False )
 
     else
-        { model | timer = newTimer }
+        ( loseLife model, True )
+
+
+loseLife : Model -> Model
+loseLife model =
+    { model
+        | timer = resetTimer model.timer
+        , hp = max (model.hp - 1) 0
+        , combo = 0
+        , input = emptyInput
+        , jokerWord = Nothing
+    }
 
 
 getKanjiDetails : Kanji -> Cmd Msg
@@ -475,13 +493,12 @@ giveUp model =
 
                 Nothing ->
                     Just (BadNews "Did not have any joker...")
+
+        model_ =
+            loseLife model
     in
-    { model
-        | input = emptyInput
-        , jokerWord = Nothing
-        , message = newMessage
-        , hp = model.hp - 1
-        , combo = 0
+    { model_
+        | message = newMessage
     }
 
 
