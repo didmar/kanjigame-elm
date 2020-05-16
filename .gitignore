@@ -1,4 +1,4 @@
 node_modules
 package-lock.json
-elm.js
+public/elm.js
 elm-stuff
