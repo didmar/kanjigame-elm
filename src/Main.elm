@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Array exposing (..)
 import Browser
+import Dict exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (checked, disabled, href, name, placeholder, src, style, target, type_, value)
 import Html.Events exposing (keyCode, on, onClick, onInput)
@@ -66,8 +67,8 @@ type alias Kanji =
 
 type alias KanjiEntry =
     { kanji : Kanji
-    , meaning : Maybe String
-    , jlpt : Maybe Int
+    , meaning : String
+    , jlpt : Int
     }
 
 
@@ -82,7 +83,12 @@ defaultKanji =
 -}
 defaultKanjiEntry : KanjiEntry
 defaultKanjiEntry =
-    { kanji = defaultKanji, meaning = Nothing, jlpt = Nothing }
+    { kanji = defaultKanji, meaning = "", jlpt = 1 }
+
+
+kanjiEntriesToDict : List KanjiEntry -> Dict Kanji KanjiEntry
+kanjiEntriesToDict kanjiEntries =
+    Dict.fromList (List.map (\ke -> ( ke.kanji, ke )) kanjiEntries)
 
 
 {-| Word selected by the Jamdict API
@@ -135,12 +141,14 @@ type alias Model =
     , selectedIndex : Maybe Int
     , history : WordEntries
     , message : Maybe String
-    , kanjis : List Kanji
+    , kanjis : Dict Kanji KanjiEntry
+    , candidateKanjis : List Kanji
     , unseenKanjis : List Kanji
     , jokerWord : Maybe WordEntry
     , hp : Int
     , timer : Timer
     , params : Params
+    , score : Int
     }
 
 
@@ -152,12 +160,14 @@ initModel params =
     , selectedIndex = Nothing
     , history = []
     , message = Nothing
-    , kanjis = []
+    , kanjis = Dict.empty
+    , candidateKanjis = []
     , unseenKanjis = []
     , jokerWord = Nothing
     , hp = maxHP
     , timer = initTimer
     , params = params
+    , score = 0
     }
 
 
@@ -199,7 +209,7 @@ queryArgsParser =
 
 
 type Msg
-    = GotKanjis (Result Http.Error (List Kanji))
+    = GotKanjis (Result Http.Error (List KanjiEntry))
     | PickedKanji Kanji
     | GotKanjiEntry (Result Http.Error KanjiEntry)
     | GotJokerWord (Result Http.Error (Maybe WordEntry))
@@ -227,12 +237,17 @@ update message model =
     case withDebugLog message of
         GotKanjis result ->
             case result of
-                Ok kanjis ->
+                Ok kanjiEntries ->
                     let
+                        candidateKanjis =
+                            List.filter (\ke -> ke.jlpt >= model.params.minJLPTLevel) kanjiEntries
+                                |> List.map .kanji
+
                         newModel =
                             { model
-                                | kanjis = kanjis
-                                , unseenKanjis = kanjis
+                                | kanjis = kanjiEntriesToDict kanjiEntries
+                                , candidateKanjis = candidateKanjis
+                                , unseenKanjis = candidateKanjis
                             }
                     in
                     ( newModel
@@ -405,8 +420,8 @@ kanjiEntryDecoder : Json.Decoder KanjiEntry
 kanjiEntryDecoder =
     Json.map3 KanjiEntry
         (Json.field "kanji" Json.string)
-        (Json.field "meaning" (Json.maybe Json.string))
-        (Json.field "jlpt" (Json.maybe Json.int))
+        (Json.field "meaning" Json.string)
+        (Json.field "jlpt" Json.int)
 
 
 updateKanjiToMatch : Model -> Kanji -> Model
@@ -414,15 +429,17 @@ updateKanjiToMatch model newKanji =
     let
         newUnseenKanjis =
             removeFromList newKanji model.unseenKanjis
+                |> (\ks ->
+                        if List.isEmpty ks then
+                            model.candidateKanjis
+
+                        else
+                            ks
+                   )
     in
     { model
-        | kanjiToMatch = { kanji = newKanji, meaning = Nothing, jlpt = Nothing }
-        , unseenKanjis =
-            if List.isEmpty newUnseenKanjis then
-                model.kanjis
-
-            else
-                newUnseenKanjis
+        | kanjiToMatch = Maybe.withDefault defaultKanjiEntry (Dict.get newKanji model.kanjis) -- TODO deal with this properly
+        , unseenKanjis = newUnseenKanjis
     }
 
 
@@ -457,14 +474,19 @@ giveUp model =
 getKanjis : Model -> Cmd Msg
 getKanjis model =
     getJson
-        (UB.relative [ apiBaseURL, "kanjis" ] [ UB.int "min_jlpt" model.params.minJLPTLevel ])
-        kanjisDecoder
+        (UB.relative [ apiBaseURL, "kanjis" ] [])
+        kanjiEntriesDecoder
         GotKanjis
 
 
 kanjisDecoder : Json.Decoder (List Kanji)
 kanjisDecoder =
     Json.field "kanjis" (Json.list Json.string)
+
+
+kanjiEntriesDecoder : Json.Decoder (List KanjiEntry)
+kanjiEntriesDecoder =
+    Json.field "kanjis" (Json.list kanjiEntryDecoder)
 
 
 drawKanji : Model -> Cmd Msg
@@ -559,7 +581,22 @@ addWord model wordEntry =
         , wordMatches = Array.empty
         , input = emptyInput
         , jokerWord = Nothing
+        , score = model.score + scoreIncrease model wordEntry
     }
+
+
+scoreIncrease : Model -> WordEntry -> Int
+scoreIncrease model wordEntry =
+    let
+        kanjiScores =
+            wordEntry.kanjis
+                -- TODO deal properly with this
+                |> List.map (\kanji -> Dict.get kanji model.kanjis |> Maybe.withDefault defaultKanjiEntry)
+                |> List.map .jlpt
+                -- 5 pts for N1, 1 pts for N5
+                |> List.map (\jlpt -> 6 - jlpt)
+    in
+    List.foldl (+) 0 kanjiScores
 
 
 romajiToHiragana : String -> Cmd Msg
@@ -687,10 +724,12 @@ viewInfos model =
                 ++ String.fromInt model.hp
                 ++ " タイマ："
                 ++ String.fromInt model.timer.value
+                ++ " SCORE："
+                ++ String.fromInt model.score
                 ++ " 漢字："
                 ++ String.fromInt (List.length model.unseenKanjis)
                 ++ "／"
-                ++ String.fromInt (List.length model.kanjis)
+                ++ String.fromInt (List.length model.candidateKanjis)
                 ++ (" (" ++ showJLPT model.params.minJLPTLevel ++ ")")
             )
         ]
@@ -720,12 +759,12 @@ viewKanjiMeaning kanjiEntry =
         [ style "font-size" "medium" ]
         [ div
             []
-            [ text (Maybe.withDefault "" kanjiEntry.meaning)
+            [ text kanjiEntry.meaning
             , viewKanjiDictLink kanjiEntry.kanji
             ]
         , div
             [ style "color" "gray" ]
-            [ text (Maybe.withDefault "" (Maybe.map showJLPT kanjiEntry.jlpt)) ]
+            [ text (showJLPT kanjiEntry.jlpt) ]
         ]
 
 
