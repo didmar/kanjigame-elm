@@ -617,6 +617,7 @@ addWord model wordEntry =
         , wordMatches = Array.empty
         , input = emptyInput
         , jokerWord = Nothing
+        , timer = resetTimer model.timer
         , score = model.score + scoreIncr
         , combo = model.combo + comboIncr
         , message = Just (GoodNews ("+ " ++ String.fromInt scoreIncr ++ " points !"))
