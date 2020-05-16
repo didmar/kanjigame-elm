@@ -134,13 +134,18 @@ initTimer =
     { active = True, value = maxTimer, maxValue = maxTimer }
 
 
+type Message
+    = GoodNews String
+    | BadNews String
+
+
 type alias Model =
     { kanjiToMatch : KanjiEntry
     , input : Input
     , wordMatches : Array WordEntry
     , selectedIndex : Maybe Int
     , history : WordEntries
-    , message : Maybe String
+    , message : Maybe Message
     , kanjis : Dict Kanji KanjiEntry
     , candidateKanjis : List Kanji
     , unseenKanjis : List Kanji
@@ -314,7 +319,9 @@ update message model =
                 Err "" ->
                     case model.hp of
                         1 ->
-                            ( { model | message = Just "Can't give up with only 1 心 left !" }, Cmd.none )
+                            ( { model | message = Just (BadNews "Can't give up with only 1 心 left !") }
+                            , Cmd.none
+                            )
 
                         _ ->
                             ( giveUp model, drawKanji model )
@@ -334,7 +341,7 @@ update message model =
                         _ ->
                             case filterNotAlreadySubmitted model wordMatches of
                                 [] ->
-                                    ( { model | message = Just "Already used this word before !" }
+                                    ( { model | message = Just (BadNews "Already used this word before !") }
                                     , Cmd.none
                                     )
 
@@ -375,7 +382,7 @@ update message model =
                             ( model, Cmd.none )
 
                 Nothing ->
-                    ( { model | message = Just "You must select one of the words !" }, Cmd.none )
+                    ( { model | message = Just (BadNews "You must select one of the words !") }, Cmd.none )
 
         Ticked newTime ->
             ( updateTimer model, Cmd.none )
@@ -461,18 +468,18 @@ updateRomaji model romaji =
 giveUp : Model -> Model
 giveUp model =
     let
-        newMsg =
+        newMessage =
             case model.jokerWord of
                 Just wordEntry ->
-                    "Could have used " ++ wordEntryToString wordEntry
+                    Just (BadNews ("Could have used " ++ wordEntryToString wordEntry))
 
                 Nothing ->
-                    "Did not have any joker..."
+                    Just (BadNews "Did not have any joker...")
     in
     { model
         | input = emptyInput
         , jokerWord = Nothing
-        , message = Just newMsg
+        , message = newMessage
         , hp = model.hp - 1
         , combo = 0
     }
@@ -576,7 +583,7 @@ noMatch : Model -> Model
 noMatch model =
     { model
         | input = emptyInput
-        , message = Just ("No match for " ++ showInput model ++ " !")
+        , message = Just (BadNews ("No match for " ++ showInput model ++ " !"))
         , hp = model.hp - 1
         , combo = 0
     }
@@ -595,7 +602,7 @@ addWord model wordEntry =
         , jokerWord = Nothing
         , score = model.score + scoreIncr
         , combo = model.combo + comboIncr
-        , message = Just ("+ " ++ String.fromInt scoreIncr ++ " points !")
+        , message = Just (GoodNews ("+ " ++ String.fromInt scoreIncr ++ " points !"))
     }
 
 
@@ -843,9 +850,21 @@ viewInput model =
 
 viewMessage : Model -> Html Msg
 viewMessage model =
+    let
+        ( textValue, colorValue ) =
+            case model.message of
+                Just (GoodNews msg) ->
+                    ( msg, "green" )
+
+                Just (BadNews msg) ->
+                    ( msg, "red" )
+
+                Nothing ->
+                    ( "", "black" )
+    in
     div
-        [ style "font-size" "medium", style "min-height" "18pt", style "color" "red" ]
-        [ text (Maybe.withDefault "" model.message) ]
+        [ style "font-size" "medium", style "min-height" "18pt", style "color" colorValue ]
+        [ text textValue ]
 
 
 viewHint : Model -> Html Msg
