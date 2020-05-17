@@ -4,9 +4,6 @@
 <head>
   <meta charset="UTF-8">
   <title>Kanji game</title>
-  <!--<script>
-    document.getElementById('myLink').setAttribute('href', 'game.html?min_jlpt=1');
-  </script>-->
 </head>
 
 <body>
@@ -19,13 +16,15 @@
 
     <ul>
       <li>The goal is to find a word that match a kanji given by the game.</li>
-      <li>Type a word before the timer (タイマ) runs out to score some points.<br>
-          If you don't know, leave the input field empty and press Enter to skip.<br>
-          A new kanji is drawn from the word you typed, or among those of the JLPT level you have selected.</li>
-      <li>If the timer runs out or your answer is invalid, you lose one life (心).<br>
+      <li>Type a word in rōmaji and press Enter to validate, before the timer (タイマ) reaches 0.<br>
+          If you don't know, leave the input field empty and press Enter to skip.</li>
+      <li>If there is multiple words possible, a box will pop up for you to select which word you meant</li>
+      <li>If your answer is valid, a new kanji will be drawn from the word you typed
+          (or among those of the JLPT level you have selected).</li>
+      <li>If your answer is invalid or you run out of time, you lose one life (心).<br>
           If you reach 0, it's game over !</li>
-      <li>To get the best score, try to make a "chain", for example 仕事, 事故, 故障, ...<br>
-          This will increase the kanji combo multiplier !</li>
+      <li>To get the best score (点), try to make a "chain", for example 仕事, 事故, 故障, ...<br>
+          This will increase the kanji combo multiplier (コンボ) !</li>
     </ul>
 
     <h2>Ready ?</h2>
