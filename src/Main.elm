@@ -815,12 +815,14 @@ viewInfos : Model -> Html Msg
 viewInfos model =
     let
         cells =
-            [ "心ｘ" ++ String.fromInt model.hp
-            , "タイマ：" ++ String.fromInt model.timer.value
+            [ "心ｘ"
+                ++ String.padLeft 2 '0' (String.fromInt model.hp)
+            , "タイマ："
+                ++ String.padLeft 2 '0' (String.fromInt model.timer.value)
             , "SCORE："
-                ++ String.fromInt model.score
+                ++ String.padLeft 6 '0' (String.fromInt model.score)
                 ++ "\n(COMBO："
-                ++ String.fromInt model.combo
+                ++ String.padLeft 3 '0' (String.fromInt model.combo)
                 ++ ")"
             , "漢字："
                 ++ String.fromInt (List.length model.unseenKanjis)
@@ -900,7 +902,7 @@ viewHint model =
         elems =
             case ( model.jokerWord, model.timer.value <= hintTime ) of
                 ( Just jokerWord, True ) ->
-                    [ u [] [ text "Hint: " ]
+                    [ u [] [ text "Hint:" ]
                     , text (" " ++ jokerWord.meaning)
                     ]
 
