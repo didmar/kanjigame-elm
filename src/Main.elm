@@ -819,16 +819,16 @@ viewInfos model =
                 ++ String.padLeft 2 '0' (String.fromInt model.hp)
             , "タイマ："
                 ++ String.padLeft 2 '0' (String.fromInt model.timer.value)
-            , "SCORE："
+            , "点："
                 ++ String.padLeft 6 '0' (String.fromInt model.score)
-                ++ "\n(COMBO："
+                ++ "\n(コンボ："
                 ++ String.padLeft 3 '0' (String.fromInt model.combo)
                 ++ ")"
             , "漢字："
                 ++ String.fromInt (List.length model.unseenKanjis)
                 ++ "／"
                 ++ String.fromInt (List.length model.candidateKanjis)
-                ++ (" (" ++ showJLPT model.params.minJLPTLevel ++ ")")
+                ++ (" (Ｎ" ++ String.fromInt model.params.minJLPTLevel ++ ")")
             ]
 
         subdivs =
@@ -918,7 +918,7 @@ viewHint model =
 
 showJLPT : Int -> String
 showJLPT jlpt =
-    "JLPT N" ++ String.fromInt jlpt
+    "JLPT Ｎ" ++ String.fromInt jlpt
 
 
 viewInput : Model -> Html Msg
