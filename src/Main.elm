@@ -35,6 +35,13 @@ maxTimer =
     30
 
 
+{-| Show hint once timer if equal or less than this value
+-}
+hintTime : Int
+hintTime =
+    15
+
+
 
 -- MAIN
 
@@ -751,79 +758,161 @@ subscriptions model =
 -- VIEW
 
 
+mainStyles : List (Attribute msg)
+mainStyles =
+    [ style "display" "flex"
+    , style "flex-direction" "column"
+    , style "flex-wrap" "wrap"
+    ]
+
+
 view : Model -> Html Msg
 view model =
     if model.hp > 0 then
-        div []
+        div mainStyles
             [ viewInfos model
             , viewKanjiToMatch model
             , viewInput model
             , viewMessage model
-            , viewHint model
             , viewWordSelector model
             , viewHistory model
             ]
 
     else
-        div []
+        div mainStyles
             [ viewInfos model
             , div [ style "font-size" "8em" ] [ text "Game over !!!" ]
             , viewHistory model
             ]
 
 
+mainDivStyles : List (Attribute msg)
+mainDivStyles =
+    -- [ style "border" "1px #ccc solid"
+    -- , style "padding" "1px"
+    -- ]
+    []
+
+
+infosStyles : List (Attribute msg)
+infosStyles =
+    [ style "display" "flex"
+    , style "flex-direction" "row"
+    , style "flex-wrap" "wrap"
+    , style "color" "white"
+    , style "background-color" "black"
+    ]
+
+
+infosDivStyles : List (Attribute msg)
+infosDivStyles =
+    [ style "flex" "1"
+    , style "font-size" "large"
+    ]
+
+
 viewInfos : Model -> Html Msg
 viewInfos model =
-    div []
-        [ text
-            ("心ｘ"
-                ++ String.fromInt model.hp
-                ++ " タイマ："
-                ++ String.fromInt model.timer.value
-                ++ " SCORE："
+    let
+        cells =
+            [ "心ｘ" ++ String.fromInt model.hp
+            , "タイマ：" ++ String.fromInt model.timer.value
+            , "SCORE："
                 ++ String.fromInt model.score
-                ++ " (COMBO："
+                ++ "\n(COMBO："
                 ++ String.fromInt model.combo
-                ++ ") 漢字："
+                ++ ")"
+            , "漢字："
                 ++ String.fromInt (List.length model.unseenKanjis)
                 ++ "／"
                 ++ String.fromInt (List.length model.candidateKanjis)
                 ++ (" (" ++ showJLPT model.params.minJLPTLevel ++ ")")
-            )
-        ]
+            ]
+
+        subdivs =
+            List.map (\cell -> div infosDivStyles [ text cell ]) cells
+    in
+    div (mainDivStyles ++ infosStyles) subdivs
 
 
 viewKanjiToMatch : Model -> Html Msg
 viewKanjiToMatch model =
-    div [ style "min-height" "55pt" ]
+    div
+        (mainDivStyles
+            ++ [ style "display" "flex"
+               , style "flex-direction" "row"
+               , style "flex-wrap" "wrap"
+               , style "min-height" "55pt"
+               ]
+        )
         [ viewKanji model.kanjiToMatch.kanji
-        , viewKanjiMeaning model.kanjiToMatch
+        , viewKanjiInfos model
         ]
 
 
 viewKanji : Kanji -> Html Msg
 viewKanji kanji =
     div
-        [ style "font-size" "xxx-large"
-        , style "float" "left"
-        , style "margin-right" "10pt"
+        [ style "flex" "1"
+        , style "font-size" "60pt"
+        , style "margin" "0px 15px 0px 15px"
         ]
-        [ text (kanji ++ "?") ]
+        [ text kanji ]
+
+
+viewKanjiInfos : Model -> Html Msg
+viewKanjiInfos model =
+    div
+        [ style "flex" "9"
+        , style "display" "flex"
+        , style "flex-direction" "column"
+        , style "flex-wrap" "wrap"
+        , style "align-items" "stretch"
+        , style "font-size" "medium"
+        ]
+        [ viewKanjiMeaning model.kanjiToMatch
+        , viewJLPTLevel model.kanjiToMatch
+        , viewHint model
+        ]
 
 
 viewKanjiMeaning : KanjiEntry -> Html Msg
 viewKanjiMeaning kanjiEntry =
     div
-        [ style "font-size" "medium" ]
-        [ div
-            []
-            [ text kanjiEntry.meaning
-            , viewKanjiDictLink kanjiEntry.kanji
-            ]
-        , div
-            [ style "color" "gray" ]
-            [ text (showJLPT kanjiEntry.jlpt) ]
+        [ style "flex" "1" ]
+        [ text kanjiEntry.meaning
+        , viewKanjiDictLink kanjiEntry.kanji
         ]
+
+
+viewJLPTLevel : KanjiEntry -> Html Msg
+viewJLPTLevel kanjiEntry =
+    div
+        [ style "flex" "1"
+        , style "color" "gray"
+        ]
+        [ text (showJLPT kanjiEntry.jlpt) ]
+
+
+viewHint : Model -> Html Msg
+viewHint model =
+    let
+        elems =
+            case ( model.jokerWord, model.timer.value <= hintTime ) of
+                ( Just jokerWord, True ) ->
+                    [ u [] [ text "Hint: " ]
+                    , text (" " ++ jokerWord.meaning)
+                    ]
+
+                _ ->
+                    []
+    in
+    div
+        [ style "flex" "1"
+        , style "font-size" "medium"
+        , style "color" "blue"
+        ]
+        elems
 
 
 showJLPT : Int -> String
@@ -849,18 +938,19 @@ viewKanjiDictLink kanji =
 viewInput : Model -> Html Msg
 viewInput model =
     div
-        []
+        mainDivStyles
         [ input
             [ placeholder ("Type a word with " ++ model.kanjiToMatch.kanji)
             , value model.input.romaji
             , onInput UpdatedInput
             , onEnter SubmittedInput
             , disabled (not (Array.isEmpty model.wordMatches))
+            , style "font-size" "xx-large"
             ]
             []
         , div
-            [ style "font-size" "medium"
-            , style "min-height" "18pt"
+            [ style "font-size" "xx-large"
+            , style "min-height" "35pt"
             ]
             [ text (showInput model) ]
         ]
@@ -881,30 +971,19 @@ viewMessage model =
                     ( "", "black" )
     in
     div
-        [ style "font-size" "medium", style "min-height" "18pt", style "color" colorValue ]
+        (mainDivStyles
+            ++ [ style "font-size" "large"
+               , style "min-height" "30pt"
+               , style "color" colorValue
+               ]
+        )
         [ text textValue ]
-
-
-viewHint : Model -> Html Msg
-viewHint model =
-    let
-        elems =
-            case model.jokerWord of
-                Just jokerWord ->
-                    [ u [] [ text "Hint:" ], text (" " ++ jokerWord.meaning) ]
-
-                Nothing ->
-                    []
-    in
-    div
-        [ style "font-size" "medium" ]
-        elems
 
 
 viewHistory : Model -> Html Msg
 viewHistory model =
     ul
-        []
+        (mainDivStyles ++ [ style "list-style-type" "none" ])
         (List.map viewWordEntry model.history)
 
 
@@ -936,34 +1015,38 @@ viewWordDictLink wordEntry =
 
 viewWordSelector : Model -> Html Msg
 viewWordSelector model =
-    if Array.isEmpty model.wordMatches then
-        div [] []
+    let
+        contents =
+            if Array.isEmpty model.wordMatches then
+                []
 
-    else
-        div []
-            [ text "Choose a word:"
-            , ul [ style "list-style-type" "none" ]
-                (List.map
-                    (\( idx, wordEntry ) ->
-                        div
-                            []
-                            [ li [ style "font-size" "medium" ]
-                                [ input
-                                    [ type_ "radio"
-                                    , name "entrySelector"
-                                    , value <| String.fromInt idx
-                                    , onInput WordSelected
-                                    , checked <| Just idx == model.selectedIndex
+            else
+                [ text "Choose a word:"
+                , ul [ style "list-style-type" "none" ]
+                    (List.map
+                        (\( idx, wordEntry ) ->
+                            div
+                                []
+                                [ li [ style "font-size" "medium" ]
+                                    [ input
+                                        [ type_ "radio"
+                                        , name "entrySelector"
+                                        , value <| String.fromInt idx
+                                        , onInput WordSelected
+                                        , checked <| Just idx == model.selectedIndex
+                                        ]
+                                        []
+                                    , text wordEntry.word
                                     ]
-                                    []
-                                , text wordEntry.word
                                 ]
-                            ]
+                        )
+                        (Array.toIndexedList model.wordMatches)
                     )
-                    (Array.toIndexedList model.wordMatches)
-                )
-            , button [ onClick SelectionConfirmed ] [ text "Confirm" ]
-            ]
+                , button [ onClick SelectionConfirmed ] [ text "Confirm" ]
+                ]
+    in
+    div (mainDivStyles ++ [ style "background-color" "yellow" ])
+        contents
 
 
 showInput : Model -> String
