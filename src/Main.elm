@@ -225,7 +225,6 @@ queryArgsParser =
 type Msg
     = GotKanjis (Result Http.Error (List KanjiEntry))
     | PickedKanji Kanji
-    | GotKanjiEntry (Result Http.Error KanjiEntry)
     | GotJokerWord (Result Http.Error (Maybe WordEntry))
     | UpdatedInput String
     | GotConverted (Result Http.Error Input)
@@ -273,21 +272,8 @@ update message model =
 
         PickedKanji newKanji ->
             ( updateKanjiToMatch model newKanji
-            , Cmd.batch
-                [ getJokerWord newKanji model.params.minJLPTLevel
-                , getKanjiDetails newKanji
-                ]
+            , getJokerWord newKanji model.params.minJLPTLevel
             )
-
-        GotKanjiEntry result ->
-            case result of
-                Ok kanjiEntry ->
-                    ( { model | kanjiToMatch = kanjiEntry }
-                    , Cmd.none
-                    )
-
-                Err _ ->
-                    ( model, Cmd.none )
 
         GotJokerWord result ->
             case result of
@@ -444,14 +430,6 @@ loseLife model =
         , input = emptyInput
         , jokerWord = Nothing
     }
-
-
-getKanjiDetails : Kanji -> Cmd Msg
-getKanjiDetails kanji =
-    getJson
-        (UB.relative [ apiBaseURL, "kanji-details", kanji ] [])
-        kanjiEntryDecoder
-        GotKanjiEntry
 
 
 kanjiEntryDecoder : Json.Decoder KanjiEntry
