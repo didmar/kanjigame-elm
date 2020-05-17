@@ -228,7 +228,7 @@ type Msg
     | GotKanjiEntry (Result Http.Error KanjiEntry)
     | GotJokerWord (Result Http.Error (Maybe WordEntry))
     | UpdatedInput String
-    | GotConverted (Result Http.Error (Result String Hiragana))
+    | GotConverted (Result Http.Error Input)
     | SubmittedInput
     | GotWordMatches (Result Http.Error WordEntries)
     | WordSelected String
@@ -312,7 +312,7 @@ update message model =
                     )
 
         GotConverted result ->
-            ( updateConverted model result
+            ( updateInput model result
             , Cmd.none
             )
 
@@ -589,15 +589,11 @@ kanjiGenerator kanjis =
     Random.uniform x xs
 
 
-updateConverted : Model -> Result Http.Error (Result String Hiragana) -> Model
-updateConverted model result =
+updateInput : Model -> Result Http.Error Input -> Model
+updateInput model result =
     case result of
-        Ok converted ->
-            let
-                upd input =
-                    { input | converted = converted }
-            in
-            { model | input = upd model.input }
+        Ok newInput ->
+            { model | input = newInput }
 
         Err _ ->
             model
@@ -671,13 +667,22 @@ romajiToHiragana romaji =
         _ ->
             getJson
                 (UB.relative [ apiBaseURL, "to-hiragana", romaji ] [])
-                convertedDecoder
+                inputDecoder
                 GotConverted
+
+
+inputDecoder : Json.Decoder Input
+inputDecoder =
+    Json.map2 Input
+        (Json.field "partial" Json.string)
+        convertedDecoder
 
 
 convertedDecoder : Json.Decoder (Result String Hiragana)
 convertedDecoder =
-    Json.field "valid" Json.bool
+    Json.field
+        "valid"
+        Json.bool
         |> Json.andThen
             (\valid ->
                 case valid of
@@ -934,11 +939,6 @@ viewInput model =
             , style "font-size" "xx-large"
             ]
             []
-        , div
-            [ style "font-size" "xx-large"
-            , style "min-height" "35pt"
-            ]
-            [ text (showInput model) ]
         ]
 
 
