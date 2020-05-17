@@ -162,6 +162,7 @@ type alias Model =
     , params : Params
     , score : Int
     , combo : Int
+    , error : Maybe String
     }
 
 
@@ -182,6 +183,7 @@ initModel params =
     , params = params
     , score = 0
     , combo = 0
+    , error = Nothing
     }
 
 
@@ -247,148 +249,158 @@ withDebugLog message =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
-    case withDebugLog message of
-        GotKanjis result ->
-            case result of
-                Ok kanjiEntries ->
-                    let
-                        candidateKanjis =
-                            List.filter (\ke -> ke.jlpt >= model.params.minJLPTLevel) kanjiEntries
-                                |> List.map .kanji
+    case model.error of
+        Just error ->
+            ( model, Cmd.none )
 
-                        newModel =
-                            { model
-                                | kanjis = kanjiEntriesToDict kanjiEntries
-                                , candidateKanjis = candidateKanjis
-                                , unseenKanjis = candidateKanjis
-                            }
-                    in
-                    ( newModel
-                    , drawKanji newModel
-                    )
-
-                Err _ ->
-                    ( model, Cmd.none )
-
-        PickedKanji newKanji ->
-            ( updateKanjiToMatch model newKanji
-            , getJokerWord newKanji model.params.minJLPTLevel
-            )
-
-        GotJokerWord result ->
-            case result of
-                Ok jokerWord ->
-                    ( { model | jokerWord = Debug.log ("jokerWord for kanji " ++ model.kanjiToMatch.kanji) jokerWord }
-                    , Cmd.none
-                    )
-
-                Err _ ->
-                    ( model, Cmd.none )
-
-        UpdatedInput romaji ->
-            case romaji of
-                "" ->
-                    ( { model | input = emptyInput, message = Nothing }
-                    , Cmd.none
-                    )
-
-                _ ->
-                    ( updateRomaji model romaji
-                    , romajiToHiragana romaji
-                    )
-
-        GotConverted result ->
-            ( updateInput model result
-            , Cmd.none
-            )
-
-        SubmittedInput ->
-            case model.input.converted of
-                Ok hiragana ->
-                    ( model
-                    , searchWord hiragana model.kanjiToMatch.kanji
-                    )
-
-                Err "" ->
-                    case model.hp of
-                        1 ->
-                            ( { model | message = Just (BadNews "Can't give up with only 1 心 left !") }
-                            , Cmd.none
-                            )
-
-                        _ ->
-                            ( giveUp model, drawKanji model )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        GotWordMatches result ->
-            case result of
-                Ok wordMatches ->
-                    case wordMatches of
-                        [] ->
-                            ( noMatch model
-                            , Cmd.none
-                            )
-
-                        _ ->
-                            case filterNotAlreadySubmitted model wordMatches of
-                                [] ->
-                                    ( { model | message = Just (BadNews "Already used this word before !") }
-                                    , Cmd.none
-                                    )
-
-                                w :: [] ->
-                                    let
-                                        newModel =
-                                            addWord model w
-                                    in
-                                    ( newModel
-                                    , drawKanji newModel
-                                    )
-
-                                ws ->
-                                    ( { model | wordMatches = Array.fromList ws }
-                                    , Cmd.none
-                                    )
-
-                Err _ ->
-                    ( { model | input = emptyInput }
-                    , Cmd.none
-                    )
-
-        WordSelected index ->
-            ( { model | selectedIndex = String.toInt index }, Cmd.none )
-
-        SelectionConfirmed ->
-            case model.selectedIndex of
-                Just index ->
-                    case Array.get index model.wordMatches of
-                        Just wordEntry ->
+        Nothing ->
+            case withDebugLog message of
+                GotKanjis result ->
+                    case result of
+                        Ok kanjiEntries ->
                             let
-                                newModel =
-                                    addWord model wordEntry
-                            in
-                            ( newModel, drawKanji newModel )
+                                candidateKanjis =
+                                    List.filter (\ke -> ke.jlpt >= model.params.minJLPTLevel) kanjiEntries
+                                        |> List.map .kanji
 
-                        Nothing ->
+                                newModel =
+                                    { model
+                                        | kanjis = kanjiEntriesToDict kanjiEntries
+                                        , candidateKanjis = candidateKanjis
+                                        , unseenKanjis = candidateKanjis
+                                    }
+                            in
+                            ( newModel
+                            , drawKanji newModel
+                            )
+
+                        Err httpError ->
+                            ( { model | error = Just ("Failed to retrieve kanjis: " ++ httpErrorToString httpError) }
+                            , Cmd.none
+                            )
+
+                PickedKanji newKanji ->
+                    ( updateKanjiToMatch model newKanji
+                    , getJokerWord newKanji model.params.minJLPTLevel
+                    )
+
+                GotJokerWord result ->
+                    case result of
+                        Ok jokerWord ->
+                            ( { model | jokerWord = Debug.log ("jokerWord for kanji " ++ model.kanjiToMatch.kanji) jokerWord }
+                            , Cmd.none
+                            )
+
+                        Err httpError ->
+                            ( { model | error = Just ("Failed to retrieve joker word: " ++ httpErrorToString httpError) }
+                            , Cmd.none
+                            )
+
+                UpdatedInput romaji ->
+                    case romaji of
+                        "" ->
+                            ( { model | input = emptyInput, message = Nothing }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( updateRomaji model romaji
+                            , romajiToHiragana romaji
+                            )
+
+                GotConverted result ->
+                    ( updateInput model result
+                    , Cmd.none
+                    )
+
+                SubmittedInput ->
+                    case model.input.converted of
+                        Ok hiragana ->
+                            ( model
+                            , searchWord hiragana model.kanjiToMatch.kanji
+                            )
+
+                        Err "" ->
+                            case model.hp of
+                                1 ->
+                                    ( { model | message = Just (BadNews "Can't give up with only 1 心 left !") }
+                                    , Cmd.none
+                                    )
+
+                                _ ->
+                                    ( giveUp model, drawKanji model )
+
+                        Err _ ->
+                            -- Input is not valid, ignoring the submission
                             ( model, Cmd.none )
 
-                Nothing ->
-                    ( { model | message = Just (BadNews "You must select one of the words !") }, Cmd.none )
+                GotWordMatches result ->
+                    case result of
+                        Ok wordMatches ->
+                            case wordMatches of
+                                [] ->
+                                    ( noMatch model
+                                    , Cmd.none
+                                    )
 
-        Ticked newTime ->
-            let
-                ( newModel, lostLife ) =
-                    updateTimer model
-            in
-            ( newModel
-            , if lostLife then
-                drawKanji model
+                                _ ->
+                                    case filterNotAlreadySubmitted model wordMatches of
+                                        [] ->
+                                            ( { model | message = Just (BadNews "Already used this word before !") }
+                                            , Cmd.none
+                                            )
 
-              else
-                Cmd.none
-            )
+                                        w :: [] ->
+                                            let
+                                                newModel =
+                                                    addWord model w
+                                            in
+                                            ( newModel
+                                            , drawKanji newModel
+                                            )
+
+                                        ws ->
+                                            ( { model | wordMatches = Array.fromList ws }
+                                            , Cmd.none
+                                            )
+
+                        Err httpError ->
+                            ( { model | error = Just ("Failed to find word matches: " ++ httpErrorToString httpError) }
+                            , Cmd.none
+                            )
+
+                WordSelected index ->
+                    ( { model | selectedIndex = String.toInt index }, Cmd.none )
+
+                SelectionConfirmed ->
+                    case model.selectedIndex of
+                        Just index ->
+                            case Array.get index model.wordMatches of
+                                Just wordEntry ->
+                                    let
+                                        newModel =
+                                            addWord model wordEntry
+                                    in
+                                    ( newModel, drawKanji newModel )
+
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                        Nothing ->
+                            ( { model | message = Just (BadNews "You must select one of the words !") }, Cmd.none )
+
+                Ticked newTime ->
+                    let
+                        ( newModel, lostLife ) =
+                            updateTimer model
+                    in
+                    ( newModel
+                    , if lostLife then
+                        drawKanji model
+
+                      else
+                        Cmd.none
+                    )
 
 
 filterNotAlreadySubmitted : Model -> List WordEntry -> List WordEntry
@@ -573,8 +585,8 @@ updateInput model result =
         Ok newInput ->
             { model | input = newInput }
 
-        Err _ ->
-            model
+        Err httpError ->
+            { model | error = Just ("Failed to convert input to hiragana: " ++ httpErrorToString httpError) }
 
 
 noMatch : Model -> Model
@@ -751,22 +763,38 @@ mainStyles =
 
 view : Model -> Html Msg
 view model =
-    if model.hp > 0 then
-        div mainStyles
-            [ viewInfos model
-            , viewKanjiToMatch model
-            , viewInput model
-            , viewMessage model
-            , viewWordSelector model
-            , viewHistory model
-            ]
+    case model.error of
+        Just error ->
+            viewError error
 
-    else
-        div mainStyles
-            [ viewInfos model
-            , div [ style "font-size" "8em" ] [ text "Game over !!!" ]
-            , viewHistory model
-            ]
+        Nothing ->
+            if model.hp > 0 then
+                div mainStyles
+                    [ viewInfos model
+                    , viewKanjiToMatch model
+                    , viewInput model
+                    , viewMessage model
+                    , viewWordSelector model
+                    , viewHistory model
+                    ]
+
+            else
+                div mainStyles
+                    [ viewInfos model
+                    , div [ style "font-size" "8em" ] [ text "Game over !!!" ]
+                    , viewHistory model
+                    ]
+
+
+viewError : String -> Html Msg
+viewError error =
+    div
+        [ style "color" "red" ]
+        [ text "ERROR !"
+        , br [] []
+        , br [] []
+        , text error
+        ]
 
 
 mainDivStyles : List (Attribute msg)
@@ -1060,3 +1088,28 @@ removeFromList x xs =
 
             else
                 y :: removeFromList x ys
+
+
+httpErrorToString : Http.Error -> String
+httpErrorToString error =
+    case error of
+        Http.BadUrl url ->
+            "The URL " ++ url ++ " was invalid"
+
+        Http.Timeout ->
+            "Unable to reach the server, try again"
+
+        Http.NetworkError ->
+            "Unable to reach the server, check your network connection"
+
+        Http.BadStatus 500 ->
+            "The server had a problem, try again later"
+
+        Http.BadStatus 400 ->
+            "Verify your information and try again"
+
+        Http.BadStatus _ ->
+            "Unknown error"
+
+        Http.BadBody errorMessage ->
+            errorMessage
