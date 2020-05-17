@@ -883,7 +883,6 @@ viewKanjiMeaning kanjiEntry =
     div
         [ style "flex" "1" ]
         [ text kanjiEntry.meaning
-        , viewKanjiDictLink kanjiEntry.kanji
         ]
 
 
@@ -920,21 +919,6 @@ viewHint model =
 showJLPT : Int -> String
 showJLPT jlpt =
     "JLPT N" ++ String.fromInt jlpt
-
-
-viewKanjiDictLink : Kanji -> Html Msg
-viewKanjiDictLink kanji =
-    a
-        [ target "_blank"
-        , href (UB.relative [ "https://jisho.org/search", kanji ++ " #kanji" ] [])
-        ]
-        [ img
-            [ src "images/ext-link.svg"
-            , style "height" "12pt"
-            , style "margin-left" "5pt"
-            ]
-            []
-        ]
 
 
 viewInput : Model -> Html Msg
