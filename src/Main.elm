@@ -757,7 +757,6 @@ mainStyles : List (Attribute msg)
 mainStyles =
     [ style "display" "flex"
     , style "flex-direction" "column"
-    , style "flex-wrap" "wrap"
     ]
 
 
@@ -768,22 +767,35 @@ view model =
             viewError error
 
         Nothing ->
-            if model.hp > 0 then
-                div mainStyles
-                    [ viewInfos model
-                    , viewKanjiToMatch model
-                    , viewInput model
-                    , viewMessage model
-                    , viewWordSelector model
-                    , viewHistory model
-                    ]
+            let
+                elems =
+                    if model.hp > 0 then
+                        [ viewInfos model
+                        , viewKanjiToMatch model
+                        , viewInput model
+                        , viewMessage model
+                        , viewWordSelector model
+                        , viewHistory model
+                        ]
 
-            else
-                div mainStyles
-                    [ viewInfos model
-                    , div [ style "font-size" "8em" ] [ text "Game over !!!" ]
-                    , viewHistory model
-                    ]
+                    else
+                        [ viewInfos model
+                        , viewGameOver
+                        , viewHistory model
+                        ]
+            in
+            div [ style "max-width" "800px", style "margin-left" "auto", style "margin-right" "auto" ] elems
+
+
+viewGameOver : Html msg
+viewGameOver =
+    div [ style "margin-bottom" "30px" ]
+        [ div [ style "font-size" "8em" ] [ text "Game over !" ]
+        , div [ style "font-size" "2em", style "display" "flex", style "justify-content" "space-around" ]
+            [ div [ style "flex-grow" "0" ] [ a [ href "" ] [ text "[Retry]" ] ]
+            , div [ style "flex-grow" "0" ] [ a [ href "." ] [ text "[Go back]" ] ]
+            ]
+        ]
 
 
 viewError : String -> Html Msg
@@ -799,65 +811,90 @@ viewError error =
 
 mainDivStyles : List (Attribute msg)
 mainDivStyles =
-    -- [ style "border" "1px #ccc solid"
-    -- , style "padding" "1px"
-    -- ]
-    []
+    [ style "padding" "5px"
+
+    --, style "border" "1px #ccc solid"
+    ]
 
 
 infosStyles : List (Attribute msg)
 infosStyles =
     [ style "display" "flex"
-    , style "flex-direction" "row"
-    , style "flex-wrap" "wrap"
     , style "color" "white"
     , style "background-color" "black"
+    , style "align-content" "center"
     ]
 
 
 infosDivStyles : List (Attribute msg)
 infosDivStyles =
-    [ style "flex" "1"
-    , style "font-size" "large"
+    [ style "font-size" "large"
     ]
 
 
 viewInfos : Model -> Html Msg
 viewInfos model =
     let
-        cells =
-            [ "心ｘ"
-                ++ String.padLeft 2 '0' (String.fromInt model.hp)
-            , "タイマ："
-                ++ String.padLeft 2 '0' (String.fromInt model.timer.value)
-            , "点："
-                ++ String.padLeft 6 '0' (String.fromInt model.score)
-                ++ "\n(コンボ："
-                ++ String.padLeft 3 '0' (String.fromInt model.combo)
-                ++ ")"
-            , "漢字："
-                ++ String.fromInt (List.length model.unseenKanjis)
-                ++ "／"
-                ++ String.fromInt (List.length model.candidateKanjis)
-                ++ (" (Ｎ" ++ String.fromInt model.params.minJLPTLevel ++ ")")
+        divFlexAndElems =
+            [ ( "1"
+              , [ text
+                    ("心ｘ "
+                        ++ String.padLeft 2 figureSpace (String.fromInt model.hp)
+                    )
+                ]
+              )
+            , ( "1"
+              , [ text
+                    ("タイマ： "
+                        ++ String.padLeft 2 figureSpace (String.fromInt model.timer.value)
+                    )
+                ]
+              )
+            , ( "1"
+              , [ text
+                    ("点： "
+                        ++ String.padLeft 5 figureSpace (String.fromInt model.score)
+                    )
+                ]
+              )
+            , ( "1"
+              , [ text
+                    ("コンボ： "
+                        ++ String.padLeft 3 figureSpace (String.fromInt model.combo)
+                    )
+                ]
+              )
+            , ( "2"
+              , [ text
+                    ("漢字： "
+                        ++ String.fromInt (List.length model.unseenKanjis)
+                        ++ "／"
+                        ++ String.fromInt (List.length model.candidateKanjis)
+                        ++ " (Ｎ"
+                        ++ String.fromInt model.params.minJLPTLevel
+                        ++ ")"
+                    )
+                ]
+              )
             ]
 
         subdivs =
-            List.map (\cell -> div infosDivStyles [ text cell ]) cells
+            List.map (\( flex, elems ) -> div (infosDivStyles ++ [ style "flex" flex ]) elems) divFlexAndElems
     in
     div (mainDivStyles ++ infosStyles) subdivs
+
+
+{-| Produces a space equal to the figure (0–9) characters.
+-}
+figureSpace : Char
+figureSpace =
+    '\u{2007}'
 
 
 viewKanjiToMatch : Model -> Html Msg
 viewKanjiToMatch model =
     div
-        (mainDivStyles
-            ++ [ style "display" "flex"
-               , style "flex-direction" "row"
-               , style "flex-wrap" "wrap"
-               , style "min-height" "55pt"
-               ]
-        )
+        (mainDivStyles ++ [ style "display" "flex" ])
         [ viewKanji model.kanjiToMatch.kanji
         , viewKanjiInfos model
         ]
@@ -866,9 +903,10 @@ viewKanjiToMatch model =
 viewKanji : Kanji -> Html Msg
 viewKanji kanji =
     div
-        [ style "flex" "1"
-        , style "font-size" "60pt"
-        , style "margin" "0px 15px 0px 15px"
+        [ style "flex" "80px"
+        , style "font-size" "80pt"
+        , style "border" "1px #ccc solid"
+        , style "text-align" "center"
         ]
         [ text kanji ]
 
@@ -876,12 +914,12 @@ viewKanji kanji =
 viewKanjiInfos : Model -> Html Msg
 viewKanjiInfos model =
     div
-        [ style "flex" "9"
+        [ style "flex" "8"
         , style "display" "flex"
         , style "flex-direction" "column"
-        , style "flex-wrap" "wrap"
         , style "align-items" "stretch"
         , style "font-size" "medium"
+        , style "margin" "0px 0px 0px 10px"
         ]
         [ viewKanjiMeaning model.kanjiToMatch
         , viewJLPTLevel model.kanjiToMatch
@@ -974,19 +1012,31 @@ viewMessage model =
 
 viewHistory : Model -> Html Msg
 viewHistory model =
-    ul
-        (mainDivStyles ++ [ style "list-style-type" "none" ])
+    div
+        (mainDivStyles
+            ++ [ style "display" "flex"
+               , style "flex-direction" "column"
+               ]
+        )
         (List.map viewWordEntry model.history)
 
 
 viewWordEntry : WordEntry -> Html Msg
 viewWordEntry wordEntry =
-    li
-        [ style "font-size" "medium"
-        , style "height" "18pt"
+    div
+        [ style "flex" "1"
+        , style "display" "flex"
+        , style "justify-content" "flex-start"
         ]
-        [ text (wordEntryToString wordEntry)
-        , viewWordDictLink wordEntry
+        [ div
+            [ style "flex-shrink" "0" ]
+            [ text (wordEntry.word ++ " (" ++ wordEntry.kana ++ "):") ]
+        , div
+            [ style "flex-shrink" "2"
+            , style "flex-basis" "600px"
+            , style "margin" "3px 0px 0px 10px"
+            ]
+            [ text wordEntry.meaning, viewWordDictLink wordEntry ]
         ]
 
 
@@ -1007,38 +1057,35 @@ viewWordDictLink wordEntry =
 
 viewWordSelector : Model -> Html Msg
 viewWordSelector model =
-    let
-        contents =
-            if Array.isEmpty model.wordMatches then
-                []
+    if Array.isEmpty model.wordMatches then
+        div [] []
 
-            else
-                [ text "Choose a word:"
-                , ul [ style "list-style-type" "none" ]
-                    (List.map
-                        (\( idx, wordEntry ) ->
-                            div
-                                []
-                                [ li [ style "font-size" "medium" ]
-                                    [ input
-                                        [ type_ "radio"
-                                        , name "entrySelector"
-                                        , value <| String.fromInt idx
-                                        , onInput WordSelected
-                                        , checked <| Just idx == model.selectedIndex
-                                        ]
-                                        []
-                                    , text wordEntry.word
+    else
+        div
+            (mainDivStyles ++ [ style "background-color" "yellow" ])
+            [ text "Choose a word:"
+            , ul [ style "list-style-type" "none" ]
+                (List.map
+                    (\( idx, wordEntry ) ->
+                        div
+                            []
+                            [ li [ style "font-size" "medium" ]
+                                [ input
+                                    [ type_ "radio"
+                                    , name "entrySelector"
+                                    , value <| String.fromInt idx
+                                    , onInput WordSelected
+                                    , checked <| Just idx == model.selectedIndex
                                     ]
+                                    []
+                                , text wordEntry.word
                                 ]
-                        )
-                        (Array.toIndexedList model.wordMatches)
+                            ]
                     )
-                , button [ onClick SelectionConfirmed ] [ text "Confirm" ]
-                ]
-    in
-    div (mainDivStyles ++ [ style "background-color" "yellow" ])
-        contents
+                    (Array.toIndexedList model.wordMatches)
+                )
+            , button [ onClick SelectionConfirmed ] [ text "Confirm" ]
+            ]
 
 
 showInput : Model -> String
