@@ -2,13 +2,15 @@ module Main exposing (..)
 
 import Array exposing (..)
 import Browser
+import Browser.Dom as Dom
 import Dict exposing (..)
 import Html exposing (..)
-import Html.Attributes exposing (checked, disabled, href, name, placeholder, src, style, target, type_, value)
+import Html.Attributes exposing (checked, disabled, href, id, name, placeholder, src, style, target, type_, value)
 import Html.Events exposing (keyCode, on, onClick, onInput)
 import Http
 import Json.Decode as Json
 import Random
+import Task
 import Time exposing (every)
 import Url
 import Url.Builder as UB
@@ -235,6 +237,7 @@ type Msg
     | WordSelected String
     | SelectionConfirmed
     | Ticked Time.Posix
+    | Focus (Result Dom.Error ())
 
 
 withDebugLog : Msg -> Msg
@@ -314,25 +317,31 @@ update message model =
                     )
 
                 SubmittedInput ->
-                    case model.input.converted of
-                        Ok hiragana ->
-                            ( model
-                            , searchWord hiragana model.kanjiToMatch.kanji
-                            )
+                    -- Ugly trick to avoid the event after Enter has been pressed
+                    -- to select a word
+                    if model.timer.value > model.timer.maxValue - 1 then
+                        ( model, Cmd.none )
 
-                        Err "" ->
-                            case model.hp of
-                                1 ->
-                                    ( { model | message = Just (BadNews "Can't give up with only 1 心 left !") }
-                                    , Cmd.none
-                                    )
+                    else
+                        case model.input.converted of
+                            Ok hiragana ->
+                                ( model
+                                , searchWord hiragana model.kanjiToMatch.kanji
+                                )
 
-                                _ ->
-                                    ( giveUp model, drawKanji model )
+                            Err "" ->
+                                case model.hp of
+                                    1 ->
+                                        ( { model | message = Just (BadNews "Can't give up with only 1 心 left !") }
+                                        , Cmd.none
+                                        )
 
-                        Err _ ->
-                            -- Input is not valid, ignoring the submission
-                            ( model, Cmd.none )
+                                    _ ->
+                                        ( giveUp model, drawKanji model )
+
+                            Err _ ->
+                                -- Input is not valid, ignoring the submission
+                                ( model, Cmd.none )
 
                 GotWordMatches result ->
                     case result of
@@ -381,13 +390,23 @@ update message model =
                                         newModel =
                                             addWord model wordEntry
                                     in
-                                    ( newModel, drawKanji newModel )
+                                    ( newModel, Cmd.batch [ drawKanji newModel, focusInputBox ] )
 
                                 Nothing ->
                                     ( model, Cmd.none )
 
                         Nothing ->
                             ( { model | message = Just (BadNews "You must select one of the words !") }, Cmd.none )
+
+                Focus result ->
+                    case result of
+                        Err (Dom.NotFound notFoundMsg) ->
+                            ( { model | error = Just ("DOM error when focusing on input box: " ++ notFoundMsg) }
+                            , Cmd.none
+                            )
+
+                        Ok _ ->
+                            ( model, Cmd.none )
 
                 Ticked newTime ->
                     let
@@ -401,6 +420,11 @@ update message model =
                       else
                         Cmd.none
                     )
+
+
+focusInputBox : Cmd Msg
+focusInputBox =
+    Task.attempt Focus (Dom.focus "input-box")
 
 
 filterNotAlreadySubmitted : Model -> List WordEntry -> List WordEntry
@@ -978,9 +1002,10 @@ viewInput model =
             [ placeholder ("Type a word with " ++ model.kanjiToMatch.kanji)
             , value model.input.romaji
             , onInput UpdatedInput
-            , onEnter SubmittedInput
             , disabled (not (Array.isEmpty model.wordMatches))
             , style "font-size" "xx-large"
+            , id "input-box"
+            , onEnter SubmittedInput
             ]
             []
         ]
@@ -1069,7 +1094,7 @@ viewWordSelector model =
                     (\( idx, wordEntry ) ->
                         div
                             []
-                            [ li [ style "font-size" "medium" ]
+                            [ li [ style "font-size" "x-large" ]
                                 [ input
                                     [ type_ "radio"
                                     , name "entrySelector"
