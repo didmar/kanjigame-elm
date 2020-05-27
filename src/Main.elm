@@ -632,6 +632,7 @@ addWord model wordEntry =
     { model
         | history = wordEntry :: model.history
         , wordMatches = Array.empty
+        , selectedIndex = Nothing
         , input = emptyInput
         , jokerWord = Nothing
         , timer = resetTimer model.timer
