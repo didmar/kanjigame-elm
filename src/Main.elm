@@ -1087,20 +1087,21 @@ viewWordSelector model =
 
     else
         div
-            (mainDivStyles ++ [ style "background-color" "yellow" ])
+            (mainDivStyles ++ [ style "background-color" "yellow", style "font-size" "x-large" ])
             [ text "Choose a word:"
             , ul [ style "list-style-type" "none" ]
                 (List.map
                     (\( idx, wordEntry ) ->
                         div
                             []
-                            [ li [ style "font-size" "x-large" ]
+                            [ li []
                                 [ input
                                     [ type_ "radio"
                                     , name "entrySelector"
                                     , value <| String.fromInt idx
                                     , onInput WordSelected
                                     , checked <| Just idx == model.selectedIndex
+                                    , style "font-size" "x-large"
                                     ]
                                     []
                                 , text wordEntry.word
@@ -1109,7 +1110,11 @@ viewWordSelector model =
                     )
                     (Array.toIndexedList model.wordMatches)
                 )
-            , button [ onClick SelectionConfirmed ] [ text "Confirm" ]
+            , button
+                [ onClick SelectionConfirmed
+                , style "font-size" "x-large"
+                ]
+                [ text "Confirm" ]
             ]
 
 
