@@ -9,6 +9,7 @@ import Html.Attributes exposing (checked, disabled, href, id, name, placeholder,
 import Html.Events exposing (keyCode, on, onClick, onInput)
 import Http
 import Json.Decode as Json
+import Json.Encode as Encode
 import Random
 import Task
 import Time exposing (every)
@@ -302,8 +303,12 @@ update message model =
                             )
 
                 PickedKanji newKanji ->
+                    let
+                        excludedWords =
+                            List.map .word model.history
+                    in
                     ( updateKanjiToMatch model newKanji
-                    , getJokerWord newKanji model.params.minJLPTLevel
+                    , getJokerWord newKanji model.params.minJLPTLevel excludedWords
                     )
 
                 GotJokerWord result ->
@@ -574,13 +579,14 @@ drawKanjiFromList kanjis =
     Random.generate PickedKanji (kanjiGenerator kanjis)
 
 
-getJokerWord : Kanji -> Int -> Cmd Msg
-getJokerWord kanji minJLPTLevel =
-    getJson
+getJokerWord : Kanji -> Int -> List ValidWord -> Cmd Msg
+getJokerWord kanji minJLPTLevel excludedWords =
+    postJson
         (UB.relative
             [ apiBaseURL, "find-word-with-kanji", kanji ]
             [ UB.int "min_jlpt" minJLPTLevel ]
         )
+        (Http.jsonBody <| Encode.object [ ( "excluded_words", Encode.list Encode.string excludedWords ) ])
         jokerWordDecoder
         GotJokerWord
 
@@ -732,6 +738,19 @@ getJson url decoder toMsg =
         , headers = []
         , expect = Http.expectJson toMsg decoder
         , body = Http.emptyBody
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+postJson : String -> Http.Body -> Json.Decoder a -> (Result Http.Error a -> b) -> Cmd b
+postJson url body decoder toMsg =
+    Http.request
+        { method = "POST"
+        , url = url
+        , headers = []
+        , expect = Http.expectJson toMsg decoder
+        , body = body
         , timeout = Nothing
         , tracker = Nothing
         }
