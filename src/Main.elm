@@ -785,6 +785,11 @@ mainStyles =
     ]
 
 
+globalMaxWidth : String
+globalMaxWidth =
+    "800px"
+
+
 view : Model -> Html Msg
 view model =
     case model.error of
@@ -809,7 +814,7 @@ view model =
                         , viewHistory model
                         ]
             in
-            div [ style "max-width" "800px", style "margin-left" "auto", style "margin-right" "auto" ] elems
+            div [ style "max-width" globalMaxWidth, style "margin-left" "auto", style "margin-right" "auto" ] elems
 
 
 viewGameOver : Html msg
@@ -826,11 +831,15 @@ viewGameOver =
 viewError : String -> Html Msg
 viewError error =
     div
-        [ style "color" "red" ]
+        [ style "color" "red", style "max-width" globalMaxWidth, style "font-size" "x-large" ]
         [ text "ERROR !"
         , br [] []
         , br [] []
         , text error
+        , br [] []
+        , br [] []
+        , div [ style "flex-grow" "0" ] [ a [ href "" ] [ text "[Retry]" ] ]
+        , div [ style "flex-grow" "0" ] [ a [ href "." ] [ text "[Go back]" ] ]
         ]
 
 
