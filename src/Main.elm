@@ -1043,15 +1043,23 @@ viewHistory model =
                , style "flex-direction" "column"
                ]
         )
-        (List.map viewWordEntry model.history)
+        (List.map (\( idx, wordEntry ) -> viewWordEntry idx wordEntry) (List.indexedMap Tuple.pair model.history))
 
 
-viewWordEntry : WordEntry -> Html Msg
-viewWordEntry wordEntry =
+viewWordEntry : Int -> WordEntry -> Html Msg
+viewWordEntry idx wordEntry =
     div
         [ style "flex" "1"
         , style "display" "flex"
         , style "justify-content" "flex-start"
+        , style "font-size"
+            (if idx == 0 then
+                -- Make latest entry bigger
+                "x-large"
+
+             else
+                "medium"
+            )
         ]
         [ div
             [ style "flex-shrink" "0" ]
