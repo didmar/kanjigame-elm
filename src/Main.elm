@@ -823,10 +823,10 @@ view model =
 viewGameOver : Html msg
 viewGameOver =
     div [ style "margin-bottom" "30px" ]
-        [ div [ style "font-size" "8em" ] [ text "Game over !" ]
-        , div [ style "font-size" "2em", style "display" "flex", style "justify-content" "space-around" ]
-            [ div [ style "flex-grow" "0" ] [ a [ href "" ] [ text "[Retry]" ] ]
-            , div [ style "flex-grow" "0" ] [ a [ href "." ] [ text "[Go back]" ] ]
+        [ div [ style "font-size" "80px" ] [ text "Game over !" ]
+        , div [ style "font-size" "2em", style "display" "flex", style "justify-content" "flex-start" ]
+            [ div [ style "flex-grow" "0", style "margin" "0 50px" ] [ a [ href "" ] [ text "[Retry]" ] ]
+            , div [ style "flex-grow" "0", style "margin" "0 50px" ] [ a [ href "." ] [ text "[Go back]" ] ]
             ]
         ]
 
