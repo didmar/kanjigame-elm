@@ -999,7 +999,7 @@ viewInput model =
     div
         mainDivStyles
         [ input
-            [ placeholder ("Type a word with " ++ model.kanjiToMatch.kanji)
+            [ placeholder ("Type a new word with " ++ model.kanjiToMatch.kanji)
             , value model.input.romaji
             , onInput UpdatedInput
             , disabled (not (Array.isEmpty model.wordMatches))
@@ -1037,13 +1037,18 @@ viewMessage model =
 
 viewHistory : Model -> Html Msg
 viewHistory model =
+    let
+        historyElems =
+            List.indexedMap Tuple.pair model.history
+                |> List.map (\( idx, wordEntry ) -> viewWordEntry idx wordEntry)
+    in
     div
         (mainDivStyles
             ++ [ style "display" "flex"
                , style "flex-direction" "column"
                ]
         )
-        (List.map (\( idx, wordEntry ) -> viewWordEntry idx wordEntry) (List.indexedMap Tuple.pair model.history))
+        (text "Previous words:" :: historyElems)
 
 
 viewWordEntry : Int -> WordEntry -> Html Msg
