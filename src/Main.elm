@@ -395,17 +395,21 @@ update message model =
                             ( model, Cmd.none )
 
                 Ticked newTime ->
-                    let
-                        ( newModel, lostLife ) =
-                            updateTimer model
-                    in
-                    ( newModel
-                    , if lostLife then
-                        drawKanji model
+                    if List.isEmpty model.wordMatches then
+                        let
+                            ( newModel, lostLife ) =
+                                updateTimer model
+                        in
+                        ( newModel
+                        , if lostLife then
+                            drawKanji model
 
-                      else
-                        Cmd.none
-                    )
+                          else
+                            Cmd.none
+                        )
+
+                    else
+                        ( model, Cmd.none )
 
 
 focusInputBox : Cmd Msg
