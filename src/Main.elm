@@ -151,7 +151,7 @@ type Message
 type alias Model =
     { kanjiToMatch : KanjiEntry
     , input : Input
-    , wordMatches : Array WordEntry
+    , wordMatches : List WordEntry
     , selectedIndex : Maybe Int
     , history : WordEntries
     , message : Maybe Message
@@ -172,7 +172,7 @@ initModel : Params -> Model
 initModel params =
     { kanjiToMatch = defaultKanjiEntry
     , input = emptyInput
-    , wordMatches = Array.empty
+    , wordMatches = []
     , selectedIndex = Nothing
     , history = []
     , message = Nothing
@@ -234,8 +234,7 @@ type Msg
     | GotConverted (Result Http.Error Input)
     | SubmittedInput
     | GotWordMatches (Result Http.Error WordEntries)
-    | WordSelected String
-    | SelectionConfirmed
+    | WordSelected WordEntry
     | Ticked Time.Posix
     | Focus (Result Dom.Error ())
 
@@ -369,7 +368,7 @@ update message model =
                                             )
 
                                         ws ->
-                                            ( { model | wordMatches = Array.fromList ws }
+                                            ( { model | wordMatches = ws }
                                             , Cmd.none
                                             )
 
@@ -378,25 +377,12 @@ update message model =
                             , Cmd.none
                             )
 
-                WordSelected index ->
-                    ( { model | selectedIndex = String.toInt index }, Cmd.none )
-
-                SelectionConfirmed ->
-                    case model.selectedIndex of
-                        Just index ->
-                            case Array.get index model.wordMatches of
-                                Just wordEntry ->
-                                    let
-                                        newModel =
-                                            addWord model wordEntry
-                                    in
-                                    ( newModel, Cmd.batch [ drawKanji newModel, focusInputBox ] )
-
-                                Nothing ->
-                                    ( model, Cmd.none )
-
-                        Nothing ->
-                            ( { model | message = Just (BadNews "You must select one of the words !") }, Cmd.none )
+                WordSelected wordEntry ->
+                    let
+                        newModel =
+                            addWord model wordEntry
+                    in
+                    ( newModel, Cmd.batch [ drawKanji newModel, focusInputBox ] )
 
                 Focus result ->
                     case result of
@@ -631,7 +617,7 @@ addWord model wordEntry =
     in
     { model
         | history = wordEntry :: model.history
-        , wordMatches = Array.empty
+        , wordMatches = []
         , selectedIndex = Nothing
         , input = emptyInput
         , jokerWord = Nothing
@@ -803,8 +789,7 @@ view model =
                         [ viewInfos model
                         , viewKanjiToMatch model
                         , viewInput model
-                        , viewMessage model
-                        , viewWordSelector model
+                        , viewMessageOrWordSelector model
                         , viewHistory model
                         ]
 
@@ -1012,13 +997,22 @@ viewInput model =
             [ placeholder ("Type a new word with " ++ model.kanjiToMatch.kanji)
             , value model.input.romaji
             , onInput UpdatedInput
-            , disabled (not (Array.isEmpty model.wordMatches))
+            , disabled (not (List.isEmpty model.wordMatches))
             , style "font-size" "xx-large"
             , id "input-box"
             , onEnter SubmittedInput
             ]
             []
         ]
+
+
+viewMessageOrWordSelector : Model -> Html Msg
+viewMessageOrWordSelector model =
+    if List.isEmpty model.wordMatches then
+        viewMessage model
+
+    else
+        viewWordSelector model
 
 
 viewMessage : Model -> Html Msg
@@ -1043,6 +1037,25 @@ viewMessage model =
                ]
         )
         [ text textValue ]
+
+
+viewWordSelector : Model -> Html Msg
+viewWordSelector model =
+    div
+        (mainDivStyles ++ [ style "background-color" "yellow", style "font-size" "x-large" ])
+        ([ text "Choose a word:"
+         ]
+            ++ List.map
+                (\wordEntry ->
+                    button
+                        [ onClick (WordSelected wordEntry)
+                        , style "font-size" "x-large"
+                        , style "margin" "0 5px"
+                        ]
+                        [ text wordEntry.word ]
+                )
+                model.wordMatches
+        )
 
 
 viewHistory : Model -> Html Msg
@@ -1101,44 +1114,6 @@ viewWordDictLink wordEntry =
             ]
             []
         ]
-
-
-viewWordSelector : Model -> Html Msg
-viewWordSelector model =
-    if Array.isEmpty model.wordMatches then
-        div [] []
-
-    else
-        div
-            (mainDivStyles ++ [ style "background-color" "yellow", style "font-size" "x-large" ])
-            [ text "Choose a word:"
-            , ul [ style "list-style-type" "none" ]
-                (List.map
-                    (\( idx, wordEntry ) ->
-                        div
-                            []
-                            [ li []
-                                [ input
-                                    [ type_ "radio"
-                                    , name "entrySelector"
-                                    , value <| String.fromInt idx
-                                    , onInput WordSelected
-                                    , checked <| Just idx == model.selectedIndex
-                                    , style "font-size" "x-large"
-                                    ]
-                                    []
-                                , text wordEntry.word
-                                ]
-                            ]
-                    )
-                    (Array.toIndexedList model.wordMatches)
-                )
-            , button
-                [ onClick SelectionConfirmed
-                , style "font-size" "x-large"
-                ]
-                [ text "Confirm" ]
-            ]
 
 
 showInput : Model -> String
