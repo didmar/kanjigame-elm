@@ -143,6 +143,26 @@ initTimer =
     { active = True, value = maxTimer, maxValue = maxTimer }
 
 
+decrementTimer : Timer -> Timer
+decrementTimer timer =
+    { timer | value = timer.value - 1 }
+
+
+resumeTimer : Timer -> Timer
+resumeTimer timer =
+    { timer | active = True }
+
+
+pauseTimer : Timer -> Timer
+pauseTimer timer =
+    { timer | active = False }
+
+
+resetTimer : Timer -> Timer
+resetTimer timer =
+    { timer | value = timer.maxValue }
+
+
 type Message
     = GoodNews String
     | BadNews String
@@ -368,7 +388,7 @@ update message model =
                                             )
 
                                         ws ->
-                                            ( { model | wordMatches = ws }
+                                            ( { model | wordMatches = ws, timer = pauseTimer model.timer }
                                             , Cmd.none
                                             )
 
@@ -395,21 +415,17 @@ update message model =
                             ( model, Cmd.none )
 
                 Ticked newTime ->
-                    if List.isEmpty model.wordMatches then
-                        let
-                            ( newModel, lostLife ) =
-                                updateTimer model
-                        in
-                        ( newModel
-                        , if lostLife then
-                            drawKanji model
+                    let
+                        ( newModel, lostLife ) =
+                            updateTimer model
+                    in
+                    ( newModel
+                    , if lostLife then
+                        drawKanji model
 
-                          else
-                            Cmd.none
-                        )
-
-                    else
-                        ( model, Cmd.none )
+                      else
+                        Cmd.none
+                    )
 
 
 focusInputBox : Cmd Msg
@@ -426,22 +442,10 @@ filterNotAlreadySubmitted model wordMatches =
     List.filter notInHistory wordMatches
 
 
-resetTimer : Timer -> Timer
-resetTimer timer =
-    { timer | value = timer.maxValue }
-
-
 updateTimer : Model -> ( Model, Bool )
 updateTimer model =
     if model.timer.value > 1 then
-        let
-            dcr timer =
-                { timer | value = timer.value - 1 }
-
-            newTimer =
-                dcr model.timer
-        in
-        ( { model | timer = newTimer }, False )
+        ( { model | timer = decrementTimer model.timer }, False )
 
     else
         ( loseLife model, True )
@@ -449,9 +453,16 @@ updateTimer model =
 
 loseLife : Model -> Model
 loseLife model =
+    let
+        newHp =
+            max (model.hp - 1) 0
+
+        newTimer =
+            resetTimer model.timer |> (\t -> { t | active = newHp > 0 })
+    in
     { model
-        | timer = resetTimer model.timer
-        , hp = max (model.hp - 1) 0
+        | timer = newTimer
+        , hp = newHp
         , combo = 0
         , input = emptyInput
         , jokerWord = Nothing
@@ -605,12 +616,12 @@ updateInput model result =
 
 noMatch : Model -> Model
 noMatch model =
-    { model
-        | input = emptyInput
-        , message = Just (BadNews ("No match for " ++ showInput model ++ " !"))
-        , hp = model.hp - 1
-        , combo = 0
-    }
+    loseLife model
+        |> (\m ->
+                { m
+                    | message = Just (BadNews ("No match for " ++ showInput model ++ " !"))
+                }
+           )
 
 
 addWord : Model -> WordEntry -> Model
@@ -618,6 +629,9 @@ addWord model wordEntry =
     let
         ( scoreIncr, comboIncr ) =
             scoreAndComboIncrease model wordEntry
+
+        newTimer =
+            resetTimer model.timer |> resumeTimer
     in
     { model
         | history = wordEntry :: model.history
@@ -625,7 +639,7 @@ addWord model wordEntry =
         , selectedIndex = Nothing
         , input = emptyInput
         , jokerWord = Nothing
-        , timer = resetTimer model.timer
+        , timer = newTimer
         , score = model.score + scoreIncr
         , combo = model.combo + comboIncr
         , message = Just (GoodNews ("+ " ++ String.fromInt scoreIncr ++ " points !"))
