@@ -3,10 +3,17 @@ Kanji game
 
 An educational game to practice kanji-based Japanese words.
 
-How to install
----------------
+How to install (Linux)
+-----------------------
 
-Instructions for Ubuntu 18.04
+The easiest way is to use Docker and docker-compose:
+```bash
+docker-compose up -d --build
+```
+Then go to http://127.0.0.1:8000 and start playing !
+
+
+Otherwise you can build locally on Debian/Ubuntu (tested on Ubuntu 18.04):
 
 [Install Elm 0.19 first](https://guide.elm-lang.org/install/elm.html)
 ```sh

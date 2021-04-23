@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  kanjigame:
+    image: kanjigame:latest
+    build: .
+    command: make
+    ports:
+      - 127.0.0.1:8000:8000
+
+  jamdictapi:
+    build: https://github.com/didmar/jamdict-api.git
+    command: make
+    ports:
+      - 0.0.0.0:9000:9000
